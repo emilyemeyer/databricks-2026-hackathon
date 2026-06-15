@@ -500,6 +500,31 @@ Per district:
     Generated from Databricks Virtue Foundation dataset exploration · June 2026
   </footer>
 
+  <section style="margin-top: 2rem;">
+    <h2>v1 Implementation — Hypertension vs. Cardiac Gap (June 2026)</h2>
+    <p>
+      <strong>Demand metric:</strong>
+      <code>w15_plus_with_high_bp_sys_gte_140_mmhg_and_or_dia_gte_90_mm_pct</code>
+      — the NFHS-5 share of women aged 15+ with high blood pressure (systolic ≥140 mmHg
+      and/or diastolic ≥90 mmHg) in each district.
+    </p>
+    <p>
+      <strong>Gap:</strong> For each district we normalize hypertension prevalence (demand) and
+      cardiac-specialty facility count (supply), then compute
+      <code>gap_score = demand_norm − supply_norm</code>. Positive scores indicate districts
+      where hypertension burden is high relative to cardiac care availability — not acute cardiac
+      event rates.
+    </p>
+    <p>
+      <strong>v1 results:</strong> 706 NFHS districts analyzed; 96.2% of facilities map to a
+      pincode; 406 districts have zero cardiac facilities; top gaps include Sikkim (South/North
+      District), Sindhudurg (Maharashtra), and Pathanamthitta (Kerala). SQL lives in
+      <code>hackathon-app/config/queries/hypertension_gap_*.sql</code>; dashboard on the Analytics
+      tab.
+    </p>
+    <p><em>See caveats section above — facility coverage is incomplete and urban-skewed.</em></p>
+  </section>
+
 </div>
 
 </body>
