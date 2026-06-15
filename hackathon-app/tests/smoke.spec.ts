@@ -23,7 +23,7 @@ const PLUGIN_PAGES: Record<string, PluginPage> = {
   analytics: {
     navLabel: 'Analytics',
     path: '/analytics',
-    expectedTexts: ['Virtue Foundation Analytics', 'Dataset Overview'],
+    expectedTexts: ['Hypertension Demand vs. Cardiac Supply', 'Supply vs. Demand by District'],
   },
   lakebase: {
     navLabel: 'Lakebase',

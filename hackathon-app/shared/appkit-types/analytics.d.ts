@@ -48,6 +48,122 @@ declare module "@databricks/appkit-ui/react" {
           value: string;
         }>;
       };
+    hypertension_gap_by_district: {
+        name: "hypertension_gap_by_district";
+        parameters: Record<string, never>;
+        result: Array<{
+          /** @sqlType STRING */
+          district_name: string;
+          /** @sqlType STRING */
+          state_ut: string;
+          /** @sqlType DOUBLE */
+          hypertension_pct: number;
+          /** @sqlType BIGINT */
+          total_facilities: number;
+          /** @sqlType BIGINT */
+          cardiac_facilities: number;
+          /** @sqlType DOUBLE */
+          gap_score: number;
+          /** @sqlType STRING */
+          gap_flag: string;
+        }>;
+      };
+    hypertension_gap_data_quality: {
+        name: "hypertension_gap_data_quality";
+        parameters: Record<string, never>;
+        result: Array<{
+          /** @sqlType BIGINT */
+          facilities_total: number;
+          /** @sqlType BIGINT */
+          facilities_matched_to_pincode: number;
+          /** @sqlType DECIMAL(26,1) */
+          facilities_pincode_match_pct: number;
+          /** @sqlType BIGINT */
+          nfhs_districts_total: number;
+          /** @sqlType BIGINT */
+          nfhs_districts_with_facilities: number;
+          /** @sqlType DECIMAL(26,1) */
+          nfhs_districts_with_facilities_pct: number;
+          /** @sqlType BIGINT */
+          nfhs_districts_unmatched: number;
+        }>;
+      };
+    hypertension_gap_geo: {
+        name: "hypertension_gap_geo";
+        parameters: Record<string, never>;
+        result: Array<{
+          /** @sqlType STRING */
+          district_name: string;
+          /** @sqlType STRING */
+          state_ut: string;
+          /** @sqlType DOUBLE */
+          hypertension_pct: number;
+          /** @sqlType BIGINT */
+          cardiac_facilities: number;
+          /** @sqlType BIGINT */
+          total_facilities: number;
+          /** @sqlType DOUBLE */
+          demand_norm: number;
+          /** @sqlType DOUBLE */
+          supply_norm: number;
+          /** @sqlType DOUBLE */
+          balance_ratio: number;
+          /** @sqlType DOUBLE */
+          latitude: number;
+          /** @sqlType DOUBLE */
+          longitude: number;
+        }>;
+      };
+    hypertension_gap_summary: {
+        name: "hypertension_gap_summary";
+        parameters: Record<string, never>;
+        result: Array<{
+          /** @sqlType BIGINT */
+          districts_analyzed: number;
+          /** @sqlType BIGINT */
+          districts_with_zero_cardiac_supply: number;
+          /** @sqlType DOUBLE */
+          median_hypertension_pct: number;
+          /** @sqlType BIGINT */
+          districts_high_gap_or_no_supply: number;
+          /** @sqlType STRING */
+          top_10_high_gap_districts: string;
+        }>;
+      };
+    hypertension_gap_table: {
+        name: "hypertension_gap_table";
+        parameters: Record<string, never>;
+        result: Array<{
+          /** @sqlType STRING */
+          district_name: string;
+          /** @sqlType STRING */
+          state_ut: string;
+          /** @sqlType DOUBLE */
+          hypertension_pct: number;
+          /** @sqlType BIGINT */
+          total_facilities: number;
+          /** @sqlType BIGINT */
+          cardiac_facilities: number;
+          /** @sqlType DOUBLE */
+          gap_score: number;
+          /** @sqlType STRING */
+          gap_flag: string;
+        }>;
+      };
+    hypertension_gap_top_districts: {
+        name: "hypertension_gap_top_districts";
+        parameters: Record<string, never>;
+        result: Array<{
+          /** @sqlType STRING */
+          district_label: string;
+          /** @sqlType DOUBLE */
+          gap_score: number;
+          /** @sqlType DOUBLE */
+          hypertension_pct: number;
+          /** @sqlType BIGINT */
+          cardiac_facilities: number;
+        }>;
+      };
     mocked_sales: {
         name: "mocked_sales";
         parameters: {
