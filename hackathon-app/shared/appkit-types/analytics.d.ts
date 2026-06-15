@@ -146,6 +146,8 @@ declare module "@databricks/appkit-ui/react" {
           state_ut: string;
           /** @sqlType DOUBLE */
           hypertension_pct: number;
+          /** @sqlType DOUBLE */
+          households_surveyed: number;
           /** @sqlType BIGINT */
           total_facilities: number;
           /** @sqlType BIGINT */
@@ -154,6 +156,8 @@ declare module "@databricks/appkit-ui/react" {
           gap_score: number;
           /** @sqlType STRING */
           gap_flag: string;
+          /** @sqlType DOUBLE */
+          confidence_score: number;
         }>;
       };
     hypertension_gap_top_districts: {
