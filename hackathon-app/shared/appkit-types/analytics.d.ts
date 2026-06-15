@@ -5,6 +5,22 @@ import type { SQLTypeMarker, SQLStringMarker, SQLNumberMarker, SQLBooleanMarker,
 
 declare module "@databricks/appkit-ui/react" {
   interface QueryRegistry {
+    district_demand_ranked: {
+        name: "district_demand_ranked";
+        parameters: Record<string, never>;
+        result: Array<{
+          /** @sqlType STRING */
+          district_name: string;
+          /** @sqlType STRING */
+          state_ut: string;
+          /** @sqlType STRING */
+          category: string;
+          /** @sqlType DOUBLE */
+          demand_score: number;
+          /** @sqlType INT */
+          category_rank_in_district: number;
+        }>;
+      };
     district_options: {
         name: "district_options";
         parameters: Record<string, never>;

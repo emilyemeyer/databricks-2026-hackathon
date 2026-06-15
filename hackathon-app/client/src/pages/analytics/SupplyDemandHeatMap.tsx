@@ -25,6 +25,7 @@ import {
   desertRiskTierLabel,
   normalizeRiskScore,
 } from './desertRisk';
+import { districtRegionKey, parseRegionKeyDisplay, prepareDistrictGeoJson, type GeoJsonCollection } from './districtMatching';
 
 const INDIA_GEOJSON_PATH = '/geo/india-districts.geojson';
 
@@ -44,8 +45,9 @@ type GeoRow = {
   longitude: number | string;
 };
 
-type HeatPoint = {
-  value: [number, number, number];
+type DistrictMapPoint = {
+  name: string;
+  value: number;
   district_name: string;
   state_ut: string;
   hypertension_pct: number;
@@ -56,6 +58,7 @@ type HeatPoint = {
   desert_risk_score: number;
   desert_risk_norm: number;
   confidence_score: number;
+  ranked_needs: DistrictDemandCategory[];
 };
 
 type ConfidenceLevel = 'high' | 'medium' | 'low';
@@ -64,8 +67,197 @@ const ALL_CONFIDENCE_LEVELS: ConfidenceLevel[] = ['high', 'medium', 'low'];
 
 const TOP_N_DISTRICTS = 25;
 
+const CATEGORY_LABELS: Record<string, string> = {
+  primary_care: 'Primary Care',
+  cardiology: 'Cardiology',
+  oncology: 'Oncology',
+  endocrinology: 'Endocrinology',
+  nutrition: 'Nutrition',
+  neurology: 'Neurology',
+  nephrology: 'Nephrology',
+  pulmonology: 'Pulmonology',
+  obgyn: "Women's Health (OB/GYN)",
+  pediatrics: 'Pediatrics',
+};
+
+type DemandRankRow = {
+  district_name: string;
+  state_ut: string;
+  category: string;
+  demand_score: number | string;
+  category_rank_in_district: number | string;
+};
+
+type DistrictDemandInfo = {
+  district_name: string;
+  state_ut: string;
+  categories: DistrictDemandCategory[];
+};
+
+type DistrictTooltipInfo = {
+  district_name: string;
+  state_ut: string;
+  ranked_needs: DistrictDemandCategory[];
+  desert_risk_score?: number;
+  desert_risk_norm?: number;
+  hypertension_pct?: number;
+  cardiac_facilities?: number;
+  total_facilities?: number;
+  demand_norm?: number;
+  supply_norm?: number;
+  confidence_score?: number;
+};
+
+type DistrictDemandCategory = {
+  category: string;
+  demand_score: number;
+  category_rank_in_district: number;
+};
+
 function districtKey(districtName: string, stateUt: string): string {
-  return `${districtName}__${stateUt}`;
+  return districtRegionKey(districtName, stateUt);
+}
+
+function formatCategoryLabel(category: string): string {
+  return CATEGORY_LABELS[category] ?? category
+    .split('_')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
+function formatRankedDemandNeeds(categories: DistrictDemandCategory[]): string {
+  if (categories.length === 0) {
+    return '<span style="color:#9ca3af">No ranked demand data for this district</span>';
+  }
+
+  const rows = categories
+    .map((item) => {
+      const label = formatCategoryLabel(item.category);
+      return [
+        '<tr>',
+        `<td style="padding:2px 8px 2px 0;color:#6b7280;width:20px">${item.category_rank_in_district}</td>`,
+        `<td style="padding:2px 8px 2px 0">${label}</td>`,
+        `<td style="padding:2px 0;text-align:right;font-weight:600">${item.demand_score.toFixed(1)}</td>`,
+        '</tr>',
+      ].join('');
+    })
+    .join('');
+
+  return [
+    '<div style="margin-top:6px">',
+    '<div style="font-weight:600;margin-bottom:4px">Ranked health needs</div>',
+    '<table style="width:100%;border-collapse:collapse;font-size:12px">',
+    '<thead>',
+    '<tr style="color:#6b7280;font-size:11px">',
+    '<th style="text-align:left;padding:0 8px 4px 0">#</th>',
+    '<th style="text-align:left;padding:0 8px 4px 0">Category</th>',
+    '<th style="text-align:right;padding:0 0 4px 0">Demand</th>',
+    '</tr>',
+    '</thead>',
+    `<tbody>${rows}</tbody>`,
+    '</table>',
+    '</div>',
+  ].join('');
+}
+
+function formatDistrictTooltip(info: DistrictTooltipInfo, riskRange: { min: number; max: number }): string {
+  const rankedNeeds = formatRankedDemandNeeds(info.ranked_needs);
+  const hasCardiacMetrics =
+    info.desert_risk_score !== undefined &&
+    info.hypertension_pct !== undefined &&
+    info.confidence_score !== undefined;
+
+  const sections = [
+    `<div style="font-size:14px;font-weight:700;margin-bottom:2px">${info.district_name}</div>`,
+    `<div style="color:#6b7280;margin-bottom:6px">${info.state_ut}</div>`,
+    rankedNeeds,
+  ];
+
+  if (hasCardiacMetrics) {
+    const tier = desertRiskTierFromScore(info.desert_risk_score!, riskRange.min, riskRange.max);
+    sections.push(
+      '<div style="margin-top:8px;padding-top:8px;border-top:1px solid #e5e7eb;color:#374151;font-size:11px;line-height:1.6">',
+      `Desert risk: ${info.desert_risk_score!.toFixed(3)} (${desertRiskTierLabel(tier)}) · intensity ${info.desert_risk_norm!.toFixed(2)}`,
+      `<br/>Hypertension: ${info.hypertension_pct!.toFixed(1)}% · Cardiac facilities: ${info.cardiac_facilities} / ${info.total_facilities}`,
+      `<br/>Demand ${info.demand_norm!.toFixed(2)} · Supply ${info.supply_norm!.toFixed(2)} · Confidence: ${confidenceLabel(info.confidence_score!)} (${info.confidence_score!.toFixed(2)})`,
+      '</div>',
+    );
+  }
+
+  return sections.join('');
+}
+
+function buildDemandByDistrict(rows: DemandRankRow[]): Map<string, DistrictDemandInfo> {
+  const byDistrict = new Map<string, DistrictDemandInfo>();
+  for (const row of rows) {
+    const key = districtKey(row.district_name, row.state_ut);
+    const entry: DistrictDemandCategory = {
+      category: row.category,
+      demand_score: Number(row.demand_score),
+      category_rank_in_district: Number(row.category_rank_in_district),
+    };
+    const existing = byDistrict.get(key);
+    if (existing) {
+      existing.categories.push(entry);
+    } else {
+      byDistrict.set(key, {
+        district_name: row.district_name,
+        state_ut: row.state_ut,
+        categories: [entry],
+      });
+    }
+  }
+  for (const info of byDistrict.values()) {
+    info.categories.sort((a, b) => a.category_rank_in_district - b.category_rank_in_district);
+  }
+  return byDistrict;
+}
+
+function buildTooltipByRegion(
+  demandByDistrict: Map<string, DistrictDemandInfo>,
+  cardiacRows: GeoRow[],
+  riskRange: { min: number; max: number },
+): Map<string, DistrictTooltipInfo> {
+  const tooltips = new Map<string, DistrictTooltipInfo>();
+
+  for (const [key, demand] of demandByDistrict) {
+    tooltips.set(key, {
+      district_name: demand.district_name,
+      state_ut: demand.state_ut,
+      ranked_needs: demand.categories,
+    });
+  }
+
+  for (const row of cardiacRows) {
+    const key = districtKey(row.district_name, row.state_ut);
+    const demandNorm = Number(row.demand_norm);
+    const supplyNorm = Number(row.supply_norm);
+    const risk = desertRiskScore(demandNorm, supplyNorm);
+    const existing = tooltips.get(key);
+    const cardiacMetrics = {
+      desert_risk_score: risk,
+      desert_risk_norm: normalizeRiskScore(risk, riskRange.min, riskRange.max),
+      hypertension_pct: Number(row.hypertension_pct),
+      cardiac_facilities: Number(row.cardiac_facilities),
+      total_facilities: Number(row.total_facilities),
+      demand_norm: demandNorm,
+      supply_norm: supplyNorm,
+      confidence_score: Number(row.confidence_score),
+    };
+
+    if (existing) {
+      tooltips.set(key, { ...existing, ...cardiacMetrics });
+    } else {
+      tooltips.set(key, {
+        district_name: row.district_name,
+        state_ut: row.state_ut,
+        ranked_needs: [],
+        ...cardiacMetrics,
+      });
+    }
+  }
+
+  return tooltips;
 }
 
 function confidenceLabel(score: number): string {
@@ -83,6 +275,11 @@ function confidenceBucket(score: number): ConfidenceLevel {
 
 export function SupplyDemandHeatMap() {
   const { data, loading, error } = useAnalyticsQuery('hypertension_gap_geo');
+  const {
+    data: demandRankedData,
+    loading: demandRankedLoading,
+    error: demandRankedError,
+  } = useAnalyticsQuery('district_demand_ranked');
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
   const [selectedLevels, setSelectedLevels] = useState<ConfidenceLevel[]>(ALL_CONFIDENCE_LEVELS);
@@ -95,9 +292,12 @@ export function SupplyDemandHeatMap() {
       try {
         const res = await fetch(INDIA_GEOJSON_PATH);
         if (!res.ok) throw new Error(`Failed to load map (${res.status})`);
-        const geoJson = await res.json();
+        const geoJson = (await res.json()) as GeoJsonCollection;
         if (cancelled) return;
-        echarts.registerMap('india_districts', geoJson);
+        echarts.registerMap(
+          'india_districts',
+          prepareDistrictGeoJson(geoJson) as Parameters<typeof echarts.registerMap>[1],
+        );
         setMapReady(true);
       } catch (e) {
         if (!cancelled) {
@@ -112,21 +312,9 @@ export function SupplyDemandHeatMap() {
   }, []);
 
   const allRows = (data ?? []) as GeoRow[];
-
-  // Top districts ranked by cardiac desert risk (demand × lack of supply),
-  // matching the "Top 25 Cardiac Desert Districts" table.
-  const topDistricts = useMemo(
-    () =>
-      allRows
-        .map((row) => ({
-          key: districtKey(row.district_name, row.state_ut),
-          district_name: row.district_name,
-          state_ut: row.state_ut,
-          risk: desertRiskScore(Number(row.demand_norm), Number(row.supply_norm)),
-        }))
-        .sort((a, b) => b.risk - a.risk)
-        .slice(0, TOP_N_DISTRICTS),
-    [allRows],
+  const demandByDistrict = useMemo(
+    () => buildDemandByDistrict((demandRankedData ?? []) as DemandRankRow[]),
+    [demandRankedData],
   );
 
   const riskRange = useMemo(() => computeRiskRange(allRows), [allRows]);
@@ -145,15 +333,40 @@ export function SupplyDemandHeatMap() {
     [allRows, selectedLevels, selectedDistricts],
   );
 
+  const tooltipByRegion = useMemo(
+    () => buildTooltipByRegion(demandByDistrict, filteredRows, riskRange),
+    [demandByDistrict, filteredRows, riskRange],
+  );
+
+  // Top districts ranked by cardiac desert risk (demand × lack of supply),
+  // matching the "Top 25 Cardiac Desert Districts" table.
+  const topDistricts = useMemo(
+    () =>
+      allRows
+        .map((row) => ({
+          key: districtKey(row.district_name, row.state_ut),
+          district_name: row.district_name,
+          state_ut: row.state_ut,
+          risk: desertRiskScore(Number(row.demand_norm), Number(row.supply_norm)),
+        }))
+        .sort((a, b) => b.risk - a.risk)
+        .slice(0, TOP_N_DISTRICTS),
+    [allRows],
+  );
+
   const option = useMemo(() => {
     if (!mapReady || filteredRows.length === 0) return null;
 
-    const heatData: HeatPoint[] = filteredRows.map((row) => {
+    const mapData: DistrictMapPoint[] = filteredRows.map((row) => {
       const demandNorm = Number(row.demand_norm);
       const supplyNorm = Number(row.supply_norm);
       const risk = desertRiskScore(demandNorm, supplyNorm);
+      const desertRiskNorm = normalizeRiskScore(risk, riskRange.min, riskRange.max);
+      const key = districtKey(row.district_name, row.state_ut);
+      const demandInfo = demandByDistrict.get(key);
       return {
-        value: [Number(row.longitude), Number(row.latitude), risk],
+        name: key,
+        value: desertRiskNorm,
         district_name: row.district_name,
         state_ut: row.state_ut,
         hypertension_pct: Number(row.hypertension_pct),
@@ -162,49 +375,32 @@ export function SupplyDemandHeatMap() {
         demand_norm: demandNorm,
         supply_norm: supplyNorm,
         desert_risk_score: risk,
-        desert_risk_norm: 0,
+        desert_risk_norm: desertRiskNorm,
         confidence_score: Number(row.confidence_score),
+        ranked_needs: demandInfo?.categories ?? [],
       };
     });
-
-    for (const point of heatData) {
-      const normalized = normalizeRiskScore(point.desert_risk_score, riskRange.min, riskRange.max);
-      point.desert_risk_norm = normalized;
-      point.value[2] = normalized;
-    }
 
     return {
       tooltip: {
         trigger: 'item',
-        formatter: (params: { data?: HeatPoint }) => {
-          const row = params.data;
-          if (!row?.district_name) return '';
-          const tier = desertRiskTierFromScore(row.desert_risk_score, riskRange.min, riskRange.max);
-          return [
-            `<strong>${row.district_name}</strong>, ${row.state_ut}`,
-            `Desert Risk: ${row.desert_risk_score.toFixed(3)} (${desertRiskTierLabel(tier)})`,
-            `Relative intensity: ${row.desert_risk_norm.toFixed(2)} (0 = lowest, 1 = highest nationally)`,
-            `Hypertension: ${row.hypertension_pct.toFixed(1)}%`,
-            `Cardiac-Capable Facilities: ${row.cardiac_facilities} (${row.total_facilities} Total Matched Facilities)`,
-            `Demand ${row.demand_norm.toFixed(2)} · Supply ${row.supply_norm.toFixed(2)} (normalized)`,
-            `Data Confidence: ${confidenceLabel(row.confidence_score)} (${row.confidence_score.toFixed(2)})`,
-          ].join('<br/>');
-        },
-      },
-      geo: {
-        map: 'india_districts',
-        roam: true,
-        zoom: 1,
-        center: [82, 23],
-        layoutCenter: ['50%', '50%'],
-        layoutSize: '85%',
-        itemStyle: {
-          areaColor: '#f5f3ef',
-          borderColor: '#c4bdb4',
-          borderWidth: 0.6,
-        },
-        emphasis: {
-          itemStyle: { areaColor: '#eeede9' },
+        confine: true,
+        padding: 12,
+        extraCssText: 'max-width: 320px; white-space: normal; line-height: 1.4;',
+        formatter: (params: { name?: string }) => {
+          const regionKey = params.name;
+          if (!regionKey) return '';
+
+          const info = tooltipByRegion.get(regionKey);
+          if (info) {
+            return formatDistrictTooltip(info, riskRange);
+          }
+
+          const { district, state } = parseRegionKeyDisplay(regionKey);
+          if (!district) {
+            return `<strong>${state}</strong><br/><span style="color:#9ca3af">No district-level data</span>`;
+          }
+          return `<strong>${district}</strong>, ${state}<br/><span style="color:#9ca3af">No demand data available for this district</span>`;
         },
       },
       visualMap: {
@@ -213,7 +409,6 @@ export function SupplyDemandHeatMap() {
         min: 0,
         max: 1,
         precision: 2,
-        dimension: 2,
         calculable: true,
         orient: 'vertical',
         right: 16,
@@ -225,18 +420,34 @@ export function SupplyDemandHeatMap() {
       },
       series: [
         {
-          name: 'Desert risk heat',
-          type: 'heatmap',
-          coordinateSystem: 'geo',
-          data: heatData,
-          pointSize: 7,
-          blurSize: 9,
+          name: 'Desert risk by district',
+          type: 'map',
+          map: 'india_districts',
+          roam: true,
+          scaleLimit: { min: 1, max: 8 },
+          layoutCenter: ['50%', '50%'],
+          layoutSize: '85%',
+          label: { show: false },
+          itemStyle: {
+            areaColor: '#f5f3ef',
+            borderColor: '#c4bdb4',
+            borderWidth: 0.6,
+          },
+          emphasis: {
+            label: { show: false },
+            itemStyle: {
+              borderColor: '#1f2937',
+              borderWidth: 1.2,
+            },
+          },
+          select: { disabled: true },
+          data: mapData,
         },
       ],
     };
-  }, [filteredRows, mapReady, riskRange]);
+  }, [demandByDistrict, filteredRows, mapReady, riskRange, tooltipByRegion]);
 
-  if (loading || !mapReady) {
+  if (loading || demandRankedLoading || !mapReady) {
     return (
       <div className="flex h-[620px] items-center justify-center text-sm text-muted-foreground">
         {mapError ? `Map error: ${mapError}` : 'Loading heat map…'}
@@ -244,10 +455,10 @@ export function SupplyDemandHeatMap() {
     );
   }
 
-  if (error) {
+  if (error || demandRankedError) {
     return (
       <div className="text-destructive bg-destructive/10 p-3 rounded-md text-sm">
-        {error}
+        {error ?? demandRankedError}
       </div>
     );
   }
@@ -337,9 +548,9 @@ export function SupplyDemandHeatMap() {
           )}
         </div>
         <p className="text-xs text-muted-foreground">
-          Showing {filteredRows.length} of {allRows.length} districts. Heat intensity reflects the
-          relative cardiac desert risk (hypertension demand × lack of cardiac supply). Dark red
-          zones concentrate where hypertension burden is high and cardiac care availability is low.
+          Showing {filteredRows.length} of {allRows.length} districts. Each district is shaded by
+          relative cardiac desert risk (hypertension demand × lack of cardiac supply). Hover any
+          district to see all 10 ranked health needs from NFHS demand categories.
         </p>
       </div>
 
@@ -352,8 +563,8 @@ export function SupplyDemandHeatMap() {
       )}
 
       <p className="text-xs text-muted-foreground text-center">
-        Heat color: red = high cardiac desert risk (high hypertension + low cardiac supply),
-        yellow = moderate, green = low risk.
+        District color: red = high cardiac desert risk (high hypertension + low cardiac supply),
+        yellow = moderate, green = low risk. Gray districts have no data for the current filters.
       </p>
     </div>
   );
