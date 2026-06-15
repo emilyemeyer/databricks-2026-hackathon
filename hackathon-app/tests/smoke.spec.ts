@@ -11,7 +11,7 @@ const APP_CONFIG = {
     'genie',
     'serving',
   ],
-  customPages: ['scenario'],
+  customPages: ['scenario', 'data-quality'],
 } as const;
 
 interface PluginPage {
@@ -30,6 +30,11 @@ const PLUGIN_PAGES: Record<string, PluginPage> = {
     navLabel: 'Scenario',
     path: '/scenario',
     expectedTexts: ['Scenario Analysis', 'Scenario workspace'],
+  },
+  'data-quality': {
+    navLabel: 'Data Quality',
+    path: '/data-quality',
+    expectedTexts: ['Data Quality', 'Actionable gaps', 'Specialty mappings'],
   },
   lakebase: {
     navLabel: 'Lakebase',

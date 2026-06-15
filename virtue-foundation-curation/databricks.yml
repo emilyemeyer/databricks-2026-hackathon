@@ -1,0 +1,42 @@
+bundle:
+  name: virtue-foundation-curation
+
+variables:
+  raw_catalog:
+    description: Read-only Open Sharing catalog with raw hackathon tables
+    default: databricks_virtue_foundation_dataset_dais_2026
+  raw_schema:
+    description: Schema containing raw hackathon tables
+    default: virtue_foundation_dataset
+  target_catalog:
+    description: Writable catalog for the 5-table model
+    default: dais_2026
+  target_schema:
+    description: Target schema (hackathon)
+    default: hackathon
+
+resources:
+  jobs:
+    curate_virtue_foundation:
+      name: "[${bundle.target}] Virtue Foundation Curation"
+      description: Build facility and health_indicator tables; seed editable mappings and dq_metrics/dq_gap in dais_2026.hackathon
+      tasks:
+        - task_key: curate
+          notebook_task:
+            notebook_path: ./notebooks/curate_dataset.py
+            base_parameters:
+              raw_catalog: ${var.raw_catalog}
+              raw_schema: ${var.raw_schema}
+              target_catalog: ${var.target_catalog}
+              target_schema: ${var.target_schema}
+
+targets:
+  default:
+    default: true
+    workspace:
+      host: https://adb-7405609899023285.5.azuredatabricks.net
+    variables:
+      raw_catalog: databricks_virtue_foundation_dataset_dais_2026
+      raw_schema: virtue_foundation_dataset
+      target_catalog: dais_2026
+      target_schema: hackathon

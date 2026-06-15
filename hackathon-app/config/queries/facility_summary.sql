@@ -1,5 +1,5 @@
 SELECT
   COUNT(*) AS total_facilities,
-  COUNT(DISTINCT address_stateOrRegion) AS states_covered,
-  COUNT(DISTINCT facilityTypeId) AS facility_types
-FROM databricks_virtue_foundation_dataset_dais_2026.virtue_foundation_dataset.facilities
+  COUNT(DISTINCT state_ut) AS states_covered,
+  COUNT(DISTINCT facility_type) AS facility_types
+FROM dais_2026.hackathon.facility

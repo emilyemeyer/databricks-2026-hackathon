@@ -1,0 +1,93 @@
+alias,canonical_state_ut,source_system
+MAHARASHTRA,Maharashtra,india_post
+Maharashtra,Maharashtra,nfhs
+Maharastra,Maharashtra,nfhs_typo
+Maharastra,Maharashtra,facility_raw
+Tamil Nadu,Tamil Nadu,nfhs
+TAMIL NADU,Tamil Nadu,india_post
+Tamilnadu,Tamil Nadu,alias
+Tamil Nadu,Tamil Nadu,facility_raw
+ODISHA,Odisha,india_post
+Odisha,Odisha,nfhs
+Orissa,Odisha,facility_raw
+Orissa,Odisha,alias
+ANDAMAN AND NICOBAR ISLANDS,Andaman & Nicobar Islands,india_post
+Andaman & Nicobar Islands,Andaman & Nicobar Islands,nfhs
+THE DADRA AND NAGAR HAVELI AND DAMAN AND DIU,Dadra and Nagar Haveli & Daman and Diu,india_post
+Dadra and Nagar Haveli & Daman and Diu,Dadra and Nagar Haveli & Daman and Diu,nfhs
+JAMMU AND KASHMIR,Jammu & Kashmir,india_post
+Jammu & Kashmir,Jammu & Kashmir,nfhs
+Jammu and Kashmir,Jammu & Kashmir,alias
+LADAKH,Ladakh,india_post
+Ladakh,Ladakh,nfhs
+NCT OF DELHI,NCT of Delhi,alias
+NCT of Delhi,NCT of Delhi,nfhs
+DELHI,NCT of Delhi,india_post
+Delhi,NCT of Delhi,facility_raw
+New Delhi,NCT of Delhi,facility_raw
+PUDUCHERRY,Puducherry,india_post
+Puducherry,Puducherry,nfhs
+Pondicherry,Puducherry,facility_raw
+Pondicherry,Puducherry,alias
+CHHATTISGARH,Chhattisgarh,india_post
+Chhattisgarh,Chhattisgarh,nfhs
+Chattisgarh,Chhattisgarh,alias
+ANDHRA PRADESH,Andhra Pradesh,india_post
+Andhra Pradesh,Andhra Pradesh,nfhs
+ARUNACHAL PRADESH,Arunachal Pradesh,india_post
+Arunachal Pradesh,Arunachal Pradesh,nfhs
+ASSAM,Assam,india_post
+Assam,Assam,nfhs
+BIHAR,Bihar,india_post
+Bihar,Bihar,nfhs
+CHANDIGARH,Chandigarh,india_post
+Chandigarh,Chandigarh,nfhs
+GOA,Goa,india_post
+Goa,Goa,nfhs
+GUJARAT,Gujarat,india_post
+Gujarat,Gujarat,nfhs
+HARYANA,Haryana,india_post
+Haryana,Haryana,nfhs
+HIMACHAL PRADESH,Himachal Pradesh,india_post
+Himachal Pradesh,Himachal Pradesh,nfhs
+JHARKHAND,Jharkhand,india_post
+Jharkhand,Jharkhand,nfhs
+KARNATAKA,Karnataka,india_post
+Karnataka,Karnataka,nfhs
+KERALA,Kerala,india_post
+Kerala,Kerala,nfhs
+LAKSHADWEEP,Lakshadweep,india_post
+Lakshadweep,Lakshadweep,nfhs
+MADHYA PRADESH,Madhya Pradesh,india_post
+Madhya Pradesh,Madhya Pradesh,nfhs
+MANIPUR,Manipur,india_post
+Manipur,Manipur,nfhs
+MEGHALAYA,Meghalaya,india_post
+Meghalaya,Meghalaya,nfhs
+MIZORAM,Mizoram,india_post
+Mizoram,Mizoram,nfhs
+NAGALAND,Nagaland,india_post
+Nagaland,Nagaland,nfhs
+PUNJAB,Punjab,india_post
+Punjab,Punjab,nfhs
+RAJASTHAN,Rajasthan,india_post
+Rajasthan,Rajasthan,nfhs
+SIKKIM,Sikkim,india_post
+Sikkim,Sikkim,nfhs
+TELANGANA,Telangana,india_post
+Telangana,Telangana,nfhs
+TRIPURA,Tripura,india_post
+Tripura,Tripura,nfhs
+UTTAR PRADESH,Uttar Pradesh,india_post
+Uttar Pradesh,Uttar Pradesh,nfhs
+Up,Uttar Pradesh,facility_raw
+U.p.,Uttar Pradesh,facility_raw
+UP,Uttar Pradesh,facility_raw
+UTTARAKHAND,Uttarakhand,india_post
+Uttarakhand,Uttarakhand,nfhs
+WEST BENGAL,West Bengal,india_post
+West Bengal,West Bengal,nfhs
+Mumbai,Maharashtra,city_as_state
+Thane,Maharashtra,city_as_state
+Malappuram,Kerala,city_as_state
+Punjab Region,Punjab,facility_raw

@@ -1,4 +1,4 @@
-import { createBrowserRouter, RouterProvider, NavLink, Outlet } from 'react-router';
+import { createBrowserRouter, Navigate, RouterProvider, NavLink, Outlet } from 'react-router';
 import { useState, useEffect } from 'react';
 import {
   Button,
@@ -16,6 +16,7 @@ import { Menu } from 'lucide-react';
 import { AnalyticsPage } from './pages/analytics/AnalyticsPage';
 import { ScenarioPage } from './pages/scenario/ScenarioPage';
 import { LakebasePage } from './pages/lakebase/LakebasePage';
+import { DataQualityPage } from './pages/data-quality/DataQualityPage';
 import { GeniePage } from './pages/genie/GeniePage';
 import { ServingPage } from './pages/serving/ServingPage';
 
@@ -46,6 +47,9 @@ function NavLinks({ className, linkClass, onClick }: { className?: string; linkC
       </NavLink>
       <NavLink to="/scenario" className={linkClass} onClick={onClick}>
         Scenario
+      </NavLink>
+      <NavLink to="/data-quality" className={linkClass} onClick={onClick}>
+        Data Quality
       </NavLink>
       <NavLink to="/lakebase" className={linkClass} onClick={onClick}>
         Lakebase
@@ -106,6 +110,8 @@ const router = createBrowserRouter([
       { path: '/', element: <HomePage /> },
       { path: '/analytics', element: <AnalyticsPage /> },
       { path: '/scenario', element: <ScenarioPage /> },
+      { path: '/mappings', element: <Navigate to="/data-quality" replace /> },
+      { path: '/data-quality', element: <DataQualityPage /> },
       { path: '/lakebase', element: <LakebasePage /> },
       { path: '/genie', element: <GeniePage /> },
       { path: '/serving', element: <ServingPage /> },
@@ -140,7 +146,7 @@ function HomePage() {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">
-              Dashboards over the Virtue Foundation dataset — facilities by state and type.
+              Cleaned facility counts from <code className="text-xs">dais_2026.hackathon.facility</code>.
             </p>
           </CardContent>
         </Card>

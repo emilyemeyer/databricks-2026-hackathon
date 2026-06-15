@@ -235,8 +235,10 @@ export function ScenarioPage() {
       <div>
         <h2 className="text-2xl font-bold text-foreground">Scenario Analysis</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Build multi-facility scenarios, persist them in Lakebase Postgres, and compare supply-side
-          metrics against NFHS-5 demand by district.
+          Build multi-facility scenarios against cleaned{' '}
+          <code className="text-xs">health_indicator</code> demand and{' '}
+          <code className="text-xs">facility</code> supply data. Saved scenarios persist in Lakebase
+          Postgres.
         </p>
       </div>
 
@@ -375,7 +377,7 @@ export function ScenarioPage() {
                   </Select>
                 )}
                 <p className="text-xs text-muted-foreground">
-                  Districts are from NFHS-5 and match the geographic unit used in gap analysis.
+                  Districts from <code className="text-xs">dais_2026.hackathon.health_indicator</code>.
                 </p>
               </div>
 
@@ -481,7 +483,10 @@ export function ScenarioPage() {
             <CardHeader>
               <CardTitle>Baseline vs scenario by district</CardTitle>
               <CardDescription>
-                Demand (NFHS-5) is unchanged; supply metrics reflect all facilities in this scenario.
+                Demand from <code className="text-xs">health_indicator</code>; supply uses{' '}
+                <code className="text-xs">facility</code>,{' '}
+                <code className="text-xs">facility_specialty</code>, and{' '}
+                <code className="text-xs">specialty_category_mapping</code>.
               </CardDescription>
             </CardHeader>
             <CardContent>
