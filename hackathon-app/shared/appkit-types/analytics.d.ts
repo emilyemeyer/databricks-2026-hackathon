@@ -5,6 +5,18 @@ import type { SQLTypeMarker, SQLStringMarker, SQLNumberMarker, SQLBooleanMarker,
 
 declare module "@databricks/appkit-ui/react" {
   interface QueryRegistry {
+    district_options: {
+        name: "district_options";
+        parameters: Record<string, never>;
+        result: Array<{
+          /** @sqlType STRING */
+          district_key: string;
+          /** @sqlType STRING */
+          district_name: string;
+          /** @sqlType STRING */
+          state_ut: string;
+        }>;
+      };
     facilities_by_state: {
         name: "facilities_by_state";
         parameters: Record<string, never>;
@@ -197,6 +209,53 @@ declare module "@databricks/appkit-ui/react" {
           expenses: number;
           /** @sqlType INT */
           customers: number;
+        }>;
+      };
+    scenario_multi_impact: {
+        name: "scenario_multi_impact";
+        parameters: {
+          /** STRING - use sql.string() */
+          facilities_json: SQLStringMarker;
+        };
+        result: Array<{
+          /** @sqlType STRING */
+          district_name: string;
+          /** @sqlType STRING */
+          state_ut: string;
+          /** @sqlType DOUBLE */
+          baseline_hypertension_demand_pct: number;
+          /** @sqlType DOUBLE */
+          scenario_hypertension_demand_pct: number;
+          /** @sqlType DOUBLE */
+          baseline_diabetes_demand_pct: number;
+          /** @sqlType DOUBLE */
+          scenario_diabetes_demand_pct: number;
+          /** @sqlType BIGINT */
+          baseline_facility_count: number;
+          /** @sqlType BIGINT */
+          scenario_facility_count: number;
+          /** @sqlType BIGINT */
+          delta_facility_count: number;
+          /** @sqlType BIGINT */
+          baseline_cardiac_facility_count: number;
+          /** @sqlType BIGINT */
+          scenario_cardiac_facility_count: number;
+          /** @sqlType BIGINT */
+          delta_cardiac_facility_count: number;
+          /** @sqlType DOUBLE */
+          baseline_bed_capacity: number;
+          /** @sqlType DOUBLE */
+          scenario_bed_capacity: number;
+          /** @sqlType BIGINT */
+          delta_bed_capacity: number;
+          /** @sqlType DOUBLE */
+          baseline_supply_demand_gap: number;
+          /** @sqlType DOUBLE */
+          scenario_supply_demand_gap: number;
+          /** @sqlType DOUBLE */
+          delta_supply_demand_gap: number;
+          /** @sqlType DOUBLE */
+          nfhs_households_surveyed: number;
         }>;
       };
   }

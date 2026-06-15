@@ -11,6 +11,7 @@ const APP_CONFIG = {
     'genie',
     'serving',
   ],
+  customPages: ['scenario'],
 } as const;
 
 interface PluginPage {
@@ -25,10 +26,15 @@ const PLUGIN_PAGES: Record<string, PluginPage> = {
     path: '/analytics',
     expectedTexts: ['Hypertension Demand vs. Cardiac Supply', 'Supply vs. Demand by District'],
   },
+  scenario: {
+    navLabel: 'Scenario',
+    path: '/scenario',
+    expectedTexts: ['Scenario Analysis', 'Scenario workspace'],
+  },
   lakebase: {
     navLabel: 'Lakebase',
     path: '/lakebase',
-    expectedTexts: ['Todo List'],
+    expectedTexts: ['Lakebase Scenario Library', 'Saved scenarios'],
   },
   genie: {
     navLabel: 'Genie',
@@ -43,7 +49,9 @@ const PLUGIN_PAGES: Record<string, PluginPage> = {
 };
 
 const enabledPages = Object.entries(PLUGIN_PAGES).filter(
-  ([key]) => APP_CONFIG.plugins.includes(key),
+  ([key]) =>
+    APP_CONFIG.plugins.includes(key as (typeof APP_CONFIG.plugins)[number]) ||
+    APP_CONFIG.customPages.includes(key as (typeof APP_CONFIG.customPages)[number]),
 );
 
 // ── Tests ───────────────────────────────────────────────────────────────────
