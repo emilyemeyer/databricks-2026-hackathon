@@ -1,8 +1,6 @@
 import { useMemo } from 'react';
 import {
   useAnalyticsQuery,
-  AreaChart,
-  LineChart,
   Card,
   CardContent,
   CardHeader,
@@ -219,6 +217,31 @@ function HypertensionGapSection() {
     [geoRows],
   );
 
+  const geoStats = useMemo(() => {
+    const rows = (geoRows ?? []) as Array<{
+      district_name: string;
+      state_ut: string;
+      cardiac_facilities: number;
+      demand_norm: number;
+      supply_norm: number;
+    }>;
+    if (rows.length === 0) {
+      return { totalCardiac: null as number | null, highest: null as null | { label: string; score: number } };
+    }
+    let totalCardiac = 0;
+    let highest: { label: string; score: number } | null = null;
+    for (const row of rows) {
+      totalCardiac += Number(row.cardiac_facilities);
+      const score = desertRiskScore(Number(row.demand_norm), Number(row.supply_norm));
+      if (!highest || score > highest.score) {
+        highest = { label: `${row.district_name}, ${row.state_ut}`, score };
+      }
+    }
+    return { totalCardiac, highest };
+  }, [geoRows]);
+
+  const geoLoading = !geoRows;
+
   const summaryRow = summary?.[0];
   const qualityRow = quality?.[0];
 
@@ -235,7 +258,44 @@ function HypertensionGapSection() {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+        <Card className="shadow-sm border-border/60">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Highest Risk District</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {geoLoading ? <Skeleton className="h-8 w-32" /> : (
+              <>
+                <div className="text-lg font-bold text-destructive leading-tight">
+                  {geoStats.highest?.label ?? '—'}
+                </div>
+                {geoStats.highest && (
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Desert risk{' '}
+                    {normalizeRiskScore(geoStats.highest.score, riskRange.min, riskRange.max).toFixed(
+                      2,
+                    )}{' '}
+                    (highest nationally)
+                  </div>
+                )}
+              </>
+            )}
+          </CardContent>
+        </Card>
+        <Card className="shadow-sm border-border/60">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Total Cardiac-Capable Facilities</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {geoLoading ? <Skeleton className="h-8 w-16" /> : (
+              <div className="text-2xl font-bold">
+                {geoStats.totalCardiac != null
+                  ? geoStats.totalCardiac.toLocaleString()
+                  : '—'}
+              </div>
+            )}
+          </CardContent>
+        </Card>
         <Card className="shadow-sm border-border/60">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Median Hypertension %</CardTitle>
@@ -349,11 +409,29 @@ function HypertensionGapSection() {
               <li>{qualityRow.nfhs_districts_unmatched} districts have zero matched facilities</li>
             </ul>
           )}
-          <p className="pt-2">
-            Caveats: facility data is incomplete and urban-skewed; district name mismatches remain;
-            specialty filters use JSON substring matching; hypertension is a prevalence proxy, not
-            stroke incidence.
-          </p>
+          <div className="pt-2 space-y-2">
+            <p className="font-medium text-foreground">How to read supply &amp; demand</p>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>
+                <span className="font-medium">Demand</span> is the NFHS-5 share of women aged 15+
+                with high blood pressure (systolic ≥140 and/or diastolic ≥90 mmHg). It is a survey
+                prevalence rate — not a patient count, not population-weighted, and it does not
+                include men or measure actual cardiac events.
+              </li>
+              <li>
+                <span className="font-medium">Supply</span> counts cardiac-capable facilities per
+                district (1 per matching facility), then normalizes against the best-supplied
+                district nationally. It does not reflect the number of beds, cardiologists,
+                catheterization labs, operating capacity, patient throughput, or quality of care —
+                a single small clinic and a large hospital each count as 1.
+              </li>
+            </ul>
+            <p>
+              Caveats: facility data is incomplete and urban-skewed; district name mismatches
+              remain; specialty filters use JSON substring matching; hypertension is a prevalence
+              proxy, not stroke incidence.
+            </p>
+          </div>
         </CardContent>
       </Card>
     </div>
@@ -361,11 +439,6 @@ function HypertensionGapSection() {
 }
 
 export function AnalyticsPage() {
-  const { data: summary, loading: summaryLoading, error: summaryError } =
-    useAnalyticsQuery('facility_summary');
-
-  const summaryRow = summary?.[0];
-
   return (
     <div className="space-y-10 w-full max-w-7xl mx-auto">
       <div>
@@ -376,68 +449,6 @@ export function AnalyticsPage() {
       </div>
 
       <HypertensionGapSection />
-
-      <div className="border-t pt-8 space-y-6">
-        <h3 className="text-xl font-semibold text-foreground">Facility Overview</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card className="shadow-sm border-border/60">
-            <CardHeader>
-              <CardTitle>Dataset Overview</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {summaryLoading && (
-                <div className="space-y-2">
-                  <Skeleton className="h-4 w-3/4" />
-                  <Skeleton className="h-8 w-1/2" />
-                </div>
-              )}
-              {summaryError && (
-                <div className="text-destructive bg-destructive/10 p-3 rounded-md">
-                  Error: {summaryError}
-                </div>
-              )}
-              {summaryRow && (
-                <div className="grid grid-cols-1 gap-4">
-                  <div>
-                    <div className="text-sm text-muted-foreground">Total facilities</div>
-                    <div className="text-3xl font-bold text-primary">
-                      {Number(summaryRow.total_facilities).toLocaleString()}
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <div className="text-sm text-muted-foreground">States</div>
-                      <div className="text-xl font-semibold">{summaryRow.states_covered}</div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-muted-foreground">Facility types</div>
-                      <div className="text-xl font-semibold">{summaryRow.facility_types}</div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="shadow-sm border-border/60 md:col-span-2 flex min-w-0">
-            <CardHeader>
-              <CardTitle>Top States by Facility Count</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <AreaChart queryKey="facilities_by_state" />
-            </CardContent>
-          </Card>
-
-          <Card className="shadow-sm border-border/60 flex min-w-0 md:col-span-2">
-            <CardHeader>
-              <CardTitle>Facilities by Type</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <LineChart queryKey="facilities_by_type" />
-            </CardContent>
-          </Card>
-        </div>
-      </div>
     </div>
   );
 }
