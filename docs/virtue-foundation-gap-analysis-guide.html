@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Virtue Foundation Dataset — Gap Analysis Guide</title>
+  <style>
+    :root {
+      --bg: #f8f9fb;
+      --surface: #ffffff;
+      --text: #1a1d26;
+      --muted: #5c6370;
+      --border: #e2e6ed;
+      --accent: #0b5cab;
+      --accent-light: #e8f0fa;
+      --supply: #0d7a5f;
+      --supply-bg: #e6f5f0;
+      --demand: #b45309;
+      --demand-bg: #fef3e2;
+      --bridge: #5b21b6;
+      --bridge-bg: #f3e8ff;
+      --warn-bg: #fff8e6;
+      --warn-border: #f0c040;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      font-size: 15px;
+    }
+
+    header {
+      background: linear-gradient(135deg, #0b5cab 0%, #083d72 100%);
+      color: #fff;
+      padding: 2.5rem 2rem 2rem;
+    }
+
+    header h1 {
+      margin: 0 0 0.5rem;
+      font-size: 1.75rem;
+      font-weight: 600;
+    }
+
+    header p {
+      margin: 0;
+      opacity: 0.9;
+      max-width: 720px;
+    }
+
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem 3rem;
+    }
+
+    section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.5rem 1.75rem;
+      margin-bottom: 1.5rem;
+    }
+
+    h2 {
+      margin: 0 0 1rem;
+      font-size: 1.25rem;
+      color: var(--accent);
+      border-bottom: 2px solid var(--accent-light);
+      padding-bottom: 0.5rem;
+    }
+
+    h3 {
+      margin: 1.5rem 0 0.75rem;
+      font-size: 1.05rem;
+      color: var(--text);
+    }
+
+    h3:first-of-type { margin-top: 0; }
+
+    p { margin: 0 0 1rem; }
+
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .meta-card {
+      background: var(--accent-light);
+      border-radius: 8px;
+      padding: 1rem;
+    }
+
+    .meta-card strong {
+      display: block;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      margin-bottom: 0.25rem;
+    }
+
+    .meta-card span {
+      font-family: "Cascadia Code", "Consolas", monospace;
+      font-size: 0.85rem;
+      word-break: break-all;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+      margin-bottom: 1rem;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 0.6rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+
+    th {
+      background: #f4f6f9;
+      font-weight: 600;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      color: var(--muted);
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    code {
+      font-family: "Cascadia Code", "Consolas", monospace;
+      font-size: 0.85em;
+      background: #f0f2f5;
+      padding: 0.15em 0.4em;
+      border-radius: 4px;
+    }
+
+    .badge {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.2em 0.6em;
+      border-radius: 999px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .badge-supply { background: var(--supply-bg); color: var(--supply); }
+    .badge-demand { background: var(--demand-bg); color: var(--demand); }
+    .badge-bridge { background: var(--bridge-bg); color: var(--bridge); }
+
+    .overview-table td:nth-child(2) { white-space: nowrap; }
+
+    .flow {
+      background: #f4f6f9;
+      border-radius: 8px;
+      padding: 1.25rem;
+      font-family: "Cascadia Code", "Consolas", monospace;
+      font-size: 0.82rem;
+      line-height: 1.8;
+      overflow-x: auto;
+      white-space: pre;
+      margin: 1rem 0;
+    }
+
+    .gap-list {
+      margin: 0;
+      padding-left: 1.25rem;
+    }
+
+    .gap-list li { margin-bottom: 0.5rem; }
+
+    .caveats {
+      background: var(--warn-bg);
+      border: 1px solid var(--warn-border);
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+    }
+
+    .caveats ol {
+      margin: 0.5rem 0 0;
+      padding-left: 1.25rem;
+    }
+
+    .caveats li { margin-bottom: 0.4rem; }
+
+    footer {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.85rem;
+      padding-top: 1rem;
+    }
+
+    @media print {
+      body { background: #fff; }
+      section { break-inside: avoid; box-shadow: none; }
+      header { background: #083d72; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Virtue Foundation Dataset — Gap Analysis Guide</h1>
+  <p>Columns and data types most useful for analyzing healthcare demand vs. availability in India. Based on exploration of the Databricks Virtue Foundation hackathon dataset (June 2026).</p>
+</header>
+
+<div class="container">
+
+  <section>
+    <h2>Dataset Location</h2>
+    <div class="meta-grid">
+      <div class="meta-card">
+        <strong>Catalog</strong>
+        <span>databricks_virtue_foundation_dataset_dais_2026</span>
+      </div>
+      <div class="meta-card">
+        <strong>Schema</strong>
+        <span>virtue_foundation_dataset</span>
+      </div>
+    </div>
+    <p>The dataset contains <strong>three tables</strong> that work together for a demand–availability gap analysis:</p>
+    <table class="overview-table">
+      <thead>
+        <tr>
+          <th>Table</th>
+          <th>Rows</th>
+          <th>Role</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>facilities</code> <span class="badge badge-supply">Supply</span></td>
+          <td>10,088</td>
+          <td>Healthcare facilities across India</td>
+        </tr>
+        <tr>
+          <td><code>nfhs_5_district_health_indicators</code> <span class="badge badge-demand">Demand</span></td>
+          <td>706</td>
+          <td>698 districts, 36 states/UTs — population health need &amp; utilization (NFHS-5)</td>
+        </tr>
+        <tr>
+          <td><code>india_post_pincode_directory</code> <span class="badge badge-bridge">Bridge</span></td>
+          <td>165,627</td>
+          <td>Pincode → district/state geographic linkage</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>1. <code>facilities</code> — Supply-Side Columns</h2>
+
+    <h3>Highest value for gap analysis</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Column</th>
+          <th>Type</th>
+          <th>Why it matters</th>
+          <th>Data quality</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>latitude</code>, <code>longitude</code></td>
+          <td>double</td>
+          <td>Spatial gap analysis, distance-to-care, heatmaps</td>
+          <td>~99% populated (9,970 / 10,088)</td>
+        </tr>
+        <tr>
+          <td><code>address_stateOrRegion</code></td>
+          <td>string</td>
+          <td>State-level aggregation</td>
+          <td>~99% populated; 254 distinct values (some districts mislabeled as states)</td>
+        </tr>
+        <tr>
+          <td><code>address_city</code></td>
+          <td>string</td>
+          <td>Sub-state aggregation</td>
+          <td>1,643 cities</td>
+        </tr>
+        <tr>
+          <td><code>address_zipOrPostcode</code></td>
+          <td>string</td>
+          <td>Join to pincode directory → district</td>
+          <td>~99% populated</td>
+        </tr>
+        <tr>
+          <td><code>facilityTypeId</code></td>
+          <td>string</td>
+          <td>Supply mix (hospital vs clinic vs dentist)</td>
+          <td>hospital (5,637), clinic (3,782), dentist (490)</td>
+        </tr>
+        <tr>
+          <td><code>operatorTypeId</code></td>
+          <td>string</td>
+          <td>Public vs private availability</td>
+          <td>~88% private, ~5% public</td>
+        </tr>
+        <tr>
+          <td><code>numberDoctors</code></td>
+          <td>string</td>
+          <td>Workforce capacity proxy</td>
+          <td>Only 3,630 rows parse as numeric (avg ~32 doctors)</td>
+        </tr>
+        <tr>
+          <td><code>capacity</code></td>
+          <td>string</td>
+          <td>Bed capacity proxy</td>
+          <td>Only 2,517 rows parse as numeric (avg ~270 beds)</td>
+        </tr>
+        <tr>
+          <td><code>specialties</code></td>
+          <td>string (JSON array)</td>
+          <td>Specialty coverage gaps (cardiology, pediatrics, obstetrics, etc.)</td>
+          <td>~99% populated</td>
+        </tr>
+        <tr>
+          <td><code>procedure</code></td>
+          <td>string (JSON array)</td>
+          <td>Services offered (vaccination, surgery, diagnostics)</td>
+          <td>~99% populated</td>
+        </tr>
+        <tr>
+          <td><code>equipment</code></td>
+          <td>string (JSON array)</td>
+          <td>Diagnostic/treatment infrastructure (CT, ICU, lab)</td>
+          <td>~99% populated</td>
+        </tr>
+        <tr>
+          <td><code>capability</code></td>
+          <td>string (JSON array)</td>
+          <td>Rich text flags: 24/7 emergency, NICU, ambulance, dialysis</td>
+          <td>~99% populated</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Useful but secondary</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Column</th>
+          <th>Type</th>
+          <th>Use</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td><code>unique_id</code></td><td>string</td><td>Primary key for deduplication</td></tr>
+        <tr><td><code>name</code></td><td>string</td><td>Facility identification</td></tr>
+        <tr><td><code>description</code></td><td>string</td><td>Qualitative service summary</td></tr>
+        <tr><td><code>cluster_id</code></td><td>string</td><td>Deduplication / entity resolution across sources</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Lower priority for gap analysis</h3>
+    <p>Contact fields (<code>phone_numbers</code>, <code>email</code>, <code>websites</code>), social media metrics, and source metadata are useful for data quality but not for measuring supply vs demand.</p>
+  </section>
+
+  <section>
+    <h2>2. <code>nfhs_5_district_health_indicators</code> — Demand-Side Columns</h2>
+    <p>NFHS-5 district-level survey data — your <strong>demand and unmet-need</strong> layer. Join to facilities on <strong>district + state</strong> (via the pincode bridge).</p>
+
+    <h3>Geography &amp; population base</h3>
+    <table>
+      <thead>
+        <tr><th>Column</th><th>Type</th><th>Why it matters</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>district_name</code></td><td>string</td><td>Primary join key</td></tr>
+        <tr><td><code>state_ut</code></td><td>string</td><td>Primary join key</td></tr>
+        <tr><td><code>households_surveyed</code></td><td>double</td><td>Sample size / weighting</td></tr>
+        <tr><td><code>population_below_age_15_years_pct</code></td><td>double</td><td>Pediatric demand proxy</td></tr>
+        <tr><td><code>women_15_49_interviewed</code></td><td>double</td><td>Maternal/reproductive health denominator</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Access &amp; utilization gaps (direct “demand not met” signals)</h3>
+    <table>
+      <thead>
+        <tr><th>Column</th><th>Type</th><th>Gap signal</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>institutional_birth_5y_pct</code></td><td>double</td><td>Maternal care access</td></tr>
+        <tr><td><code>institutional_birth_in_public_facility_5y_pct</code></td><td>double</td><td>Public-sector maternity capacity vs need</td></tr>
+        <tr><td><code>births_attended_by_skilled_hp_5y_10_pct</code></td><td>double</td><td>Skilled birth attendance gap</td></tr>
+        <tr><td><code>fp_unmet_total_cm_w15_49_7_pct</code></td><td>double</td><td>Unmet family planning need</td></tr>
+        <tr><td><code>fp_unmet_spacing_cm_w15_49_7_pct</code></td><td>double</td><td>Spacing-specific unmet need</td></tr>
+        <tr><td><code>children_with_diarrhoea_2wk_taken_to_a_health_facility_or_h_pct</code></td><td>string*</td><td>Care-seeking for acute illness</td></tr>
+        <tr><td><code>children_with_fever_or_symptoms_of_ari_2wk_taken_to_a_healt_pct</code></td><td>string*</td><td>ARI care-seeking behavior</td></tr>
+        <tr><td><code>hh_member_covered_health_insurance_pct</code></td><td>double</td><td>Financial access barrier</td></tr>
+        <tr><td><code>mothers_who_had_at_least_4_anc_visits_lb5y_pct</code></td><td>string*</td><td>Antenatal care utilization</td></tr>
+        <tr><td><code>child_12_23m_fully_vaccinated_based_on_information_from_vax_pct</code></td><td>string*</td><td>Immunization coverage gap</td></tr>
+      </tbody>
+    </table>
+    <p><em>* Many NFHS percentage columns are stored as <code>string</code> with special values (<code>*</code>, <code>(value)</code>, blanks) — parse/clean before numeric analysis.</em></p>
+
+    <h3>Disease burden (demand for specific specialties)</h3>
+    <table>
+      <thead>
+        <tr><th>Column</th><th>Type</th><th>Implied specialty need</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>child_u5_who_are_stunted_height_for_age_18_pct</code></td><td>string*</td><td>Nutrition / pediatrics</td></tr>
+        <tr><td><code>child_u5_who_are_wasted_weight_for_height_18_pct</code></td><td>string*</td><td>Acute malnutrition care</td></tr>
+        <tr><td><code>all_w15_49_who_are_anaemic_pct</code></td><td>double</td><td>Hematology, maternal health</td></tr>
+        <tr><td><code>w15_plus_with_high_or_very_high_gt_140_mg_dl_blood_sugar_or_pct</code></td><td>double</td><td>Endocrinology / diabetes</td></tr>
+        <tr><td><code>w15_plus_with_high_bp_sys_gte_140_mmhg_and_or_dia_gte_90_mm_pct</code></td><td>double</td><td>Cardiology / hypertension</td></tr>
+        <tr><td><code>m15_plus_with_high_or_very_high_gt_140_mg_dl_blood_sugar_or_pct</code></td><td>double</td><td>Men's diabetes burden</td></tr>
+        <tr><td><code>m15_plus_with_high_bp_sys_gte_140_mmhg_and_or_dia_gte_90_mm_pct</code></td><td>double</td><td>Men's hypertension burden</td></tr>
+        <tr><td><code>prev_diarrhoea_2wk_child_u5_pct</code></td><td>double</td><td>Pediatric infectious disease</td></tr>
+        <tr><td><code>children_prev_symptoms_of_acute_respiratory_infection_ari_2_pct</code></td><td>double</td><td>Pulmonology / pediatrics</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Maternal &amp; child health demand</h3>
+    <table>
+      <thead>
+        <tr><th>Column</th><th>Type</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>mothers_who_received_pnc_from_a_doctor_nurse_lhv_anm_midwif_pct</code></td><td>string*</td></tr>
+        <tr><td><code>births_delivered_by_csection_5y_pct</code></td><td>double</td></tr>
+        <tr><td><code>child_6_59m_who_are_anaemic_lt_11_0_g_dl_22_pct</code></td><td>string*</td></tr>
+        <tr><td><code>child_u6m_exclusively_breastfed_pct</code></td><td>string*</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>3. <code>india_post_pincode_directory</code> — Geographic Bridge</h2>
+    <p>Essential for linking facility pincodes to NFHS districts.</p>
+    <table>
+      <thead>
+        <tr><th>Column</th><th>Type</th><th>Use</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>pincode</code></td><td>bigint</td><td>Join to <code>facilities.address_zipOrPostcode</code></td></tr>
+        <tr><td><code>district</code></td><td>string</td><td>Join to <code>nfhs_5_district_health_indicators.district_name</code></td></tr>
+        <tr><td><code>statename</code></td><td>string</td><td>Join to <code>nfhs_5_district_health_indicators.state_ut</code></td></tr>
+        <tr><td><code>latitude</code>, <code>longitude</code></td><td>string</td><td>Pincode centroids for areas without facility coords</td></tr>
+        <tr><td><code>officetype</code>, <code>delivery</code></td><td>string</td><td>Rural vs urban proxy (BO = branch office, often rural)</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Recommended Gap Analysis Approach</h2>
+    <div class="flow">nfhs_5_district_health_indicators (demand)
+         ↑
+         │  district + statename
+         │
+india_post_pincode_directory (bridge)
+         ↑
+         │  address_zipOrPostcode = pincode
+         │
+facilities (supply)
+
+Per district:
+  SUPPLY  → facility count by type, beds/doctors, specialty coverage, public vs private mix
+  DEMAND  → disease burden %, unmet FP need %, low institutional birth %, care-seeking gaps
+  GAP     → demand score − normalized supply score</div>
+
+    <h3>Example gap metrics (per district)</h3>
+    <ol class="gap-list">
+      <li><strong>Maternal care gap</strong> — low <code>institutional_birth_5y_pct</code> + low count of facilities with obstetrics/gynecology specialties</li>
+      <li><strong>Pediatric gap</strong> — high stunting/wasting rates + low pediatric-specialty facilities per child population</li>
+      <li><strong>Chronic disease gap</strong> — high diabetes/hypertension prevalence + low internal medicine/cardiology/endocrinology supply</li>
+      <li><strong>Geographic access gap</strong> — NFHS care-seeking rates vs facility density per 100k population (using lat/long for distance analysis)</li>
+      <li><strong>Public sector gap</strong> — high public-facility birth need vs low <code>operatorTypeId = 'public'</code> facility count</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>Important Caveats</h2>
+    <div class="caveats">
+      <ol>
+        <li><strong>Coverage bias</strong> — Facilities skew heavily private (~88%) and urban (Maharashtra, Gujarat, UP top). This is not a complete census of India's healthcare system.</li>
+        <li><strong>Granularity mismatch</strong> — NFHS is district-level; facilities are point-level. Use the pincode bridge + spatial aggregation.</li>
+        <li><strong>String-typed capacity fields</strong> — <code>numberDoctors</code> and <code>capacity</code> need <code>TRY_CAST</code>; only ~25–36% have usable numeric values.</li>
+        <li><strong>NFHS string percentages</strong> — Many <code>_pct</code> columns need cleaning (<code>*</code>, parentheses, blanks).</li>
+        <li><strong>State name normalization</strong> — <code>address_stateOrRegion</code> sometimes contains district names (e.g. "Alappuzha" instead of "Kerala"); you'll need a mapping layer.</li>
+        <li><strong>Specialty arrays</strong> — <code>specialties</code>, <code>procedure</code>, <code>equipment</code>, and <code>capability</code> are JSON arrays stored as strings; explode/parse them for specialty-level gap analysis.</li>
+      </ol>
+    </div>
+  </section>
+
+  <footer>
+    Generated from Databricks Virtue Foundation dataset exploration · June 2026
+  </footer>
+
+</div>
+
+</body>
+</html>
