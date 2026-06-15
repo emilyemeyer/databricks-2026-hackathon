@@ -1,172 +1,185 @@
+import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router';
 import {
+  Button,
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
-  Button,
-  Input,
   Skeleton,
+  Badge,
 } from '@databricks/appkit-ui/react';
-import { useState, useEffect } from 'react';
-import { Check, X } from 'lucide-react';
-
-interface Todo {
-  id: number;
-  title: string;
-  completed: boolean;
-  created_at: string;
-}
+import { Copy, ExternalLink, Trash2 } from 'lucide-react';
+import {
+  deleteScenario,
+  duplicateScenario,
+  listScenarios,
+} from '../../lib/scenario-api';
+import type { ScenarioSummary } from '../../types/scenario';
 
 export function LakebasePage() {
-  const [todos, setTodos] = useState<Todo[]>([]);
-  const [newTitle, setNewTitle] = useState('');
+  const [scenarios, setScenarios] = useState<ScenarioSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [busyId, setBusyId] = useState<number | null>(null);
 
-  useEffect(() => {
-    fetch('/api/lakebase/todos')
-      .then((res) => {
-        if (!res.ok) throw new Error(`Failed to fetch todos: ${res.statusText}`);
-        return res.json() as Promise<Todo[]>;
-      })
-      .then(setTodos)
-      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load todos'))
-      .finally(() => setLoading(false));
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await listScenarios();
+      setScenarios(data);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load scenarios');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const addTodo = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const title = newTitle.trim();
-    if (!title) return;
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
 
-    setSubmitting(true);
+  const handleDuplicate = async (id: number) => {
+    setBusyId(id);
     try {
-      const res = await fetch('/api/lakebase/todos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title }),
-      });
-      if (!res.ok) throw new Error(`Failed to create todo: ${res.statusText}`);
-      const created = (await res.json()) as Todo;
-      setTodos((prev) => [created, ...prev]);
-      setNewTitle('');
+      await duplicateScenario(id);
+      await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add todo');
+      setError(err instanceof Error ? err.message : 'Failed to duplicate scenario');
     } finally {
-      setSubmitting(false);
+      setBusyId(null);
     }
   };
 
-  const toggleTodo = async (id: number) => {
+  const handleDelete = async (id: number) => {
+    setBusyId(id);
     try {
-      const res = await fetch(`/api/lakebase/todos/${id}`, { method: 'PATCH' });
-      if (!res.ok) throw new Error(`Failed to update todo: ${res.statusText}`);
-      const updated = (await res.json()) as Todo;
-      setTodos((prev) => prev.map((t) => (t.id === id ? updated : t)));
+      await deleteScenario(id);
+      await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update todo');
+      setError(err instanceof Error ? err.message : 'Failed to delete scenario');
+    } finally {
+      setBusyId(null);
     }
   };
 
-  const deleteTodo = async (id: number) => {
-    try {
-      const res = await fetch(`/api/lakebase/todos/${id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error(`Failed to delete todo: ${res.statusText}`);
-      setTodos((prev) => prev.filter((t) => t.id !== id));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete todo');
-    }
-  };
-
-  const completedCount = todos.filter((t) => t.completed).length;
+  const totalFacilities = scenarios.reduce((sum, s) => sum + s.facility_count, 0);
 
   return (
-    <div className="space-y-6 w-full max-w-2xl mx-auto">
-      <Card className="shadow-lg">
-        <CardHeader>
-          <CardTitle>Todo List</CardTitle>
+    <div className="space-y-6 w-full max-w-4xl mx-auto">
+      <div>
+        <h2 className="text-2xl font-bold text-foreground">Lakebase Scenario Library</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Persistent scenario plans stored in managed Postgres — relational schema, transactional
+          saves, and per-user connections via Lakebase OBO.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card className="shadow-sm border-border/60">
+          <CardHeader className="pb-2">
+            <CardDescription>Saved scenarios</CardDescription>
+            <CardTitle className="text-3xl">{loading ? '—' : scenarios.length}</CardTitle>
+          </CardHeader>
+        </Card>
+        <Card className="shadow-sm border-border/60">
+          <CardHeader className="pb-2">
+            <CardDescription>Total proposed facilities</CardDescription>
+            <CardTitle className="text-3xl">{loading ? '—' : totalFacilities}</CardTitle>
+          </CardHeader>
+        </Card>
+        <Card className="shadow-sm border-border/60">
+          <CardHeader className="pb-2">
+            <CardDescription>Storage</CardDescription>
+            <CardTitle className="text-base font-medium pt-2">
+              <code className="text-sm">app.scenarios</code> +{' '}
+              <code className="text-sm">app.scenario_facilities</code>
+            </CardTitle>
+          </CardHeader>
+        </Card>
+      </div>
+
+      <Card className="shadow-sm border-border/60">
+        <CardHeader className="flex flex-row items-center justify-between gap-4">
+          <div>
+            <CardTitle>Saved scenarios</CardTitle>
+            <CardDescription>
+              Create and edit scenarios on the Scenario page; manage copies and deletions here.
+            </CardDescription>
+          </div>
+          <Button asChild>
+            <Link to="/scenario">Open scenario builder</Link>
+          </Button>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground mb-4">
-            A simple CRUD example powered by Databricks Lakebase (PostgreSQL).
-          </p>
-
-          <form onSubmit={addTodo} className="flex gap-2 mb-6">
-            <Input
-              placeholder="What needs to be done?"
-              value={newTitle}
-              onChange={(e) => setNewTitle(e.target.value)}
-              disabled={submitting}
-              className="flex-1"
-            />
-            <Button type="submit" disabled={submitting || !newTitle.trim()}>
-              {submitting ? 'Adding...' : 'Add'}
-            </Button>
-          </form>
-
           {error && (
-            <div className="text-destructive bg-destructive/10 p-3 rounded-md mb-4">
-              {error}
-            </div>
+            <div className="text-destructive bg-destructive/10 p-3 rounded-md mb-4">{error}</div>
           )}
 
           {loading && (
             <div className="space-y-3">
               {Array.from({ length: 3 }, (_, i) => (
-                <div key={`skeleton-${i}`} className="flex items-center gap-3">
-                  <Skeleton className="h-5 w-5 rounded" />
-                  <Skeleton className="h-4 flex-1" />
-                </div>
+                <Skeleton key={`sk-${i}`} className="h-16 w-full" />
               ))}
             </div>
           )}
 
-          {!loading && todos.length === 0 && (
-            <p className="text-muted-foreground text-center py-8">
-              No todos yet. Add one above to get started.
+          {!loading && scenarios.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-8">
+              No scenarios saved yet. Build one on the Scenario page and click Save to Lakebase.
             </p>
           )}
 
-          {!loading && todos.length > 0 && (
-            <div className="space-y-2">
-              {todos.map((todo) => (
+          {!loading && scenarios.length > 0 && (
+            <div className="space-y-3">
+              {scenarios.map((scenario) => (
                 <div
-                  key={todo.id}
-                  className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors"
+                  key={scenario.id}
+                  className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-lg border"
                 >
-                  <button
-                    type="button"
-                    onClick={() => toggleTodo(todo.id)}
-                    className={`h-5 w-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
-                      todo.completed
-                        ? 'bg-primary border-primary text-primary-foreground'
-                        : 'border-muted-foreground/30 hover:border-primary'
-                    }`}
-                    aria-label={todo.completed ? 'Mark as incomplete' : 'Mark as complete'}
-                  >
-                    {todo.completed && <Check className="h-3 w-3" />}
-                  </button>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium">{scenario.name}</span>
+                      <Badge variant="secondary">{scenario.facility_count} facilities</Badge>
+                    </div>
+                    {scenario.description && (
+                      <p className="text-sm text-muted-foreground mt-1">{scenario.description}</p>
+                    )}
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Updated {new Date(scenario.updated_at).toLocaleString()}
+                    </p>
+                  </div>
 
-                  <span className={`flex-1 ${todo.completed ? 'line-through text-muted-foreground' : ''}`}>
-                    {todo.title}
-                  </span>
-
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => deleteTodo(todo.id)}
-                    className="text-muted-foreground hover:text-destructive shrink-0"
-                    aria-label="Delete todo"
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
+                  <div className="flex gap-2 shrink-0">
+                    <Button variant="outline" size="sm" asChild>
+                      <Link to={`/scenario?load=${scenario.id}`}>
+                        <ExternalLink className="h-4 w-4 mr-1" />
+                        Open
+                      </Link>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={busyId === scenario.id}
+                      onClick={() => void handleDuplicate(scenario.id)}
+                    >
+                      <Copy className="h-4 w-4 mr-1" />
+                      Duplicate
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={busyId === scenario.id}
+                      onClick={() => void handleDelete(scenario.id)}
+                      className="text-muted-foreground hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               ))}
-
-              <p className="text-xs text-muted-foreground pt-2">
-                {completedCount} of {todos.length} completed
-              </p>
             </div>
           )}
         </CardContent>

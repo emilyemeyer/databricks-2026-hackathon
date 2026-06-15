@@ -14,6 +14,7 @@ import {
 } from '@databricks/appkit-ui/react';
 import { Menu } from 'lucide-react';
 import { AnalyticsPage } from './pages/analytics/AnalyticsPage';
+import { ScenarioPage } from './pages/scenario/ScenarioPage';
 import { LakebasePage } from './pages/lakebase/LakebasePage';
 import { GeniePage } from './pages/genie/GeniePage';
 import { ServingPage } from './pages/serving/ServingPage';
@@ -42,6 +43,9 @@ function NavLinks({ className, linkClass, onClick }: { className?: string; linkC
       </NavLink>
       <NavLink to="/analytics" className={linkClass} onClick={onClick}>
         Analytics
+      </NavLink>
+      <NavLink to="/scenario" className={linkClass} onClick={onClick}>
+        Scenario
       </NavLink>
       <NavLink to="/lakebase" className={linkClass} onClick={onClick}>
         Lakebase
@@ -101,6 +105,7 @@ const router = createBrowserRouter([
     children: [
       { path: '/', element: <HomePage /> },
       { path: '/analytics', element: <AnalyticsPage /> },
+      { path: '/scenario', element: <ScenarioPage /> },
       { path: '/lakebase', element: <LakebasePage /> },
       { path: '/genie', element: <GeniePage /> },
       { path: '/serving', element: <ServingPage /> },
@@ -141,6 +146,16 @@ function HomePage() {
         </Card>
         <Card className="shadow-sm border-border/60">
           <CardHeader>
+            <CardTitle>Scenario Analysis</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              Model a new facility in a district and compare NFHS demand vs. supply metrics.
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="shadow-sm border-border/60">
+          <CardHeader>
             <CardTitle>Genie</CardTitle>
           </CardHeader>
           <CardContent>
@@ -155,7 +170,8 @@ function HomePage() {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">
-              Store operational data and user-generated content in managed Postgres.
+              Persist scenario plans in managed Postgres — list, duplicate, and delete saved
+              multi-facility scenarios.
             </p>
           </CardContent>
         </Card>

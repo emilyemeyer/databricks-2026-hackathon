@@ -1,0 +1,1119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Virtue Foundation Dataset — Data Quality Improvement Plan</title>
+  <style>
+    :root {
+      --bg: #f8f9fb;
+      --surface: #ffffff;
+      --text: #1a1d26;
+      --muted: #5c6370;
+      --border: #e2e6ed;
+      --accent: #0b5cab;
+      --accent-light: #e8f0fa;
+      --supply: #0d7a5f;
+      --supply-bg: #e6f5f0;
+      --demand: #b45309;
+      --demand-bg: #fef3e2;
+      --bridge: #5b21b6;
+      --bridge-bg: #f3e8ff;
+      --warn-bg: #fff8e6;
+      --warn-border: #f0c040;
+      --critical: #b91c1c;
+      --critical-bg: #fef2f2;
+      --high: #c2410c;
+      --high-bg: #fff7ed;
+      --medium: #a16207;
+      --medium-bg: #fefce8;
+      --low: #0369a1;
+      --low-bg: #f0f9ff;
+      --success: #15803d;
+      --success-bg: #f0fdf4;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      font-size: 15px;
+    }
+
+    header {
+      background: linear-gradient(135deg, #0b5cab 0%, #083d72 100%);
+      color: #fff;
+      padding: 2.5rem 2rem 2rem;
+    }
+
+    header h1 {
+      margin: 0 0 0.5rem;
+      font-size: 1.75rem;
+      font-weight: 600;
+    }
+
+    header p {
+      margin: 0;
+      opacity: 0.9;
+      max-width: 820px;
+    }
+
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem 3rem;
+    }
+
+    section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.5rem 1.75rem;
+      margin-bottom: 1.5rem;
+    }
+
+    h2 {
+      margin: 0 0 1rem;
+      font-size: 1.25rem;
+      color: var(--accent);
+      border-bottom: 2px solid var(--accent-light);
+      padding-bottom: 0.5rem;
+    }
+
+    h3 {
+      margin: 1.5rem 0 0.75rem;
+      font-size: 1.05rem;
+      color: var(--text);
+    }
+
+    h3:first-of-type { margin-top: 0; }
+
+    h4 {
+      margin: 1.25rem 0 0.5rem;
+      font-size: 0.95rem;
+      color: var(--muted);
+    }
+
+    p { margin: 0 0 1rem; }
+
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .meta-card {
+      background: var(--accent-light);
+      border-radius: 8px;
+      padding: 1rem;
+    }
+
+    .meta-card strong {
+      display: block;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      margin-bottom: 0.25rem;
+    }
+
+    .meta-card span {
+      font-family: "Cascadia Code", "Consolas", monospace;
+      font-size: 0.85rem;
+      word-break: break-all;
+    }
+
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 0.75rem;
+      margin: 1rem 0;
+    }
+
+    .kpi {
+      background: #f4f6f9;
+      border-radius: 8px;
+      padding: 0.85rem 1rem;
+      text-align: center;
+    }
+
+    .kpi .value {
+      display: block;
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .kpi .label {
+      display: block;
+      font-size: 0.75rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin-top: 0.25rem;
+    }
+
+    .kpi.bad .value { color: var(--critical); }
+    .kpi.warn .value { color: var(--high); }
+    .kpi.good .value { color: var(--success); }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+      margin-bottom: 1rem;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 0.6rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+
+    th {
+      background: #f4f6f9;
+      font-weight: 600;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      color: var(--muted);
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    code, pre {
+      font-family: "Cascadia Code", "Consolas", monospace;
+      font-size: 0.85em;
+    }
+
+    code {
+      background: #f0f2f5;
+      padding: 0.15em 0.4em;
+      border-radius: 4px;
+    }
+
+    pre {
+      background: #f4f6f9;
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      overflow-x: auto;
+      line-height: 1.55;
+      margin: 0.75rem 0 1rem;
+      font-size: 0.8rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .badge {
+      display: inline-block;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0.2em 0.55em;
+      border-radius: 999px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+    }
+
+    .badge-supply { background: var(--supply-bg); color: var(--supply); }
+    .badge-demand { background: var(--demand-bg); color: var(--demand); }
+    .badge-bridge { background: var(--bridge-bg); color: var(--bridge); }
+    .badge-p0 { background: var(--critical-bg); color: var(--critical); }
+    .badge-p1 { background: var(--high-bg); color: var(--high); }
+    .badge-p2 { background: var(--medium-bg); color: var(--medium); }
+    .badge-p3 { background: var(--low-bg); color: var(--low); }
+
+    .flow {
+      background: #f4f6f9;
+      border-radius: 8px;
+      padding: 1.25rem;
+      font-family: "Cascadia Code", "Consolas", monospace;
+      font-size: 0.82rem;
+      line-height: 1.8;
+      overflow-x: auto;
+      white-space: pre;
+      margin: 1rem 0;
+    }
+
+    .phase-card {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 1rem;
+    }
+
+    .phase-card h3 {
+      margin-top: 0;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .phase-card ul {
+      margin: 0.5rem 0 0;
+      padding-left: 1.25rem;
+    }
+
+    .phase-card li { margin-bottom: 0.4rem; }
+
+    .callout {
+      background: var(--warn-bg);
+      border: 1px solid var(--warn-border);
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      margin: 1rem 0;
+    }
+
+    .callout.success {
+      background: var(--success-bg);
+      border-color: #86efac;
+    }
+
+    .callout.critical {
+      background: var(--critical-bg);
+      border-color: #fecaca;
+    }
+
+    .toc {
+      margin: 0;
+      padding-left: 1.25rem;
+    }
+
+    .toc li { margin-bottom: 0.35rem; }
+
+    .toc a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .toc a:hover { text-decoration: underline; }
+
+    .checklist {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .checklist li {
+      padding: 0.4rem 0 0.4rem 1.75rem;
+      position: relative;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .checklist li:last-child { border-bottom: none; }
+
+    .checklist li::before {
+      content: "☐";
+      position: absolute;
+      left: 0;
+      color: var(--muted);
+    }
+
+    footer {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.85rem;
+      padding-top: 1rem;
+    }
+
+    footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    footer a:hover { text-decoration: underline; }
+
+    @media print {
+      body { background: #fff; }
+      section { break-inside: avoid; box-shadow: none; }
+      header { background: #083d72; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Virtue Foundation Dataset — Data Quality Improvement Plan</h1>
+  <p>A phased remediation roadmap for <code>databricks_virtue_foundation_dataset_dais_2026.virtue_foundation_dataset</code>. Covers profiling findings, curated-layer design, cleaning rules, validation gates, and success metrics for supply–demand gap analysis.</p>
+</header>
+
+<div class="container">
+
+  <section>
+    <h2>Document Overview</h2>
+    <div class="meta-grid">
+      <div class="meta-card">
+        <strong>Catalog</strong>
+        <span>databricks_virtue_foundation_dataset_dais_2026</span>
+      </div>
+      <div class="meta-card">
+        <strong>Schema</strong>
+        <span>virtue_foundation_dataset</span>
+      </div>
+      <div class="meta-card">
+        <strong>Status</strong>
+        <span>Baseline profiled · June 2026</span>
+      </div>
+      <div class="meta-card">
+        <strong>Related doc</strong>
+        <span><a href="virtue-foundation-gap-analysis-guide.html" style="color:inherit">gap-analysis-guide.html</a></span>
+      </div>
+    </div>
+    <p>This plan transforms three raw tables — <code>facilities</code>, <code>nfhs_5_district_health_indicators</code>, and <code>india_post_pincode_directory</code> — into analysis-ready curated tables with documented lineage, quality scores, and repeatable validation.</p>
+    <ol class="toc">
+      <li><a href="#executive-summary">Executive summary</a></li>
+      <li><a href="#current-state">Current state assessment</a></li>
+      <li><a href="#target-architecture">Target architecture</a></li>
+      <li><a href="#phased-plan">Phased improvement plan</a></li>
+      <li><a href="#table-remediation">Table-by-table remediation</a></li>
+      <li><a href="#join-layer">Geographic join layer</a></li>
+      <li><a href="#validation">Validation rules &amp; monitoring</a></li>
+      <li><a href="#success-metrics">Success metrics</a></li>
+      <li><a href="#implementation">Implementation checklist</a></li>
+    </ol>
+  </section>
+
+  <section id="executive-summary">
+    <h2>Executive Summary</h2>
+    <p>The Virtue Foundation dataset is <strong>usable for hackathon gap analysis</strong> but not analysis-ready in its raw form. Quality issues fall into four categories:</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Category</th>
+          <th>Severity</th>
+          <th>Impact</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Join fragility</strong> — state/district name mismatches, pincode fan-out, missing bridge rows</td>
+          <td><span class="badge badge-p0">Critical</span></td>
+          <td>40% of NFHS district-rows match zero facilities today; counts can be inflated by duplicate pincode joins</td>
+        </tr>
+        <tr>
+          <td><strong>Schema inconsistency</strong> — numeric fields as strings, mixed NFHS types, JSON stored as text</td>
+          <td><span class="badge badge-p0">Critical</span></td>
+          <td>Only 25–36% of capacity/doctor fields parse; many NFHS indicators need cleaning before math</td>
+        </tr>
+        <tr>
+          <td><strong>Semantic errors</strong> — districts labeled as states, garbage in <code>operatorTypeId</code>, NFHS typos</td>
+          <td><span class="badge badge-p1">High</span></td>
+          <td>State rollups and public/private splits are unreliable without normalization</td>
+        </tr>
+        <tr>
+          <td><strong>Coverage bias</strong> — private/urban-heavy facility scrape vs nationally representative NFHS</td>
+          <td><span class="badge badge-p2">Medium</span></td>
+          <td>Zero-facility districts may reflect real gaps <em>or</em> incomplete scraping — must be flagged, not silently treated as zero supply</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="callout success">
+      <strong>Recommended approach:</strong> Do not mutate the source tables. Build a <strong>curated schema</strong> (<code>virtue_foundation_curated</code>) with cleaning pipelines, a reference geography dimension, and a data-quality scorecard table updated on each run.
+    </div>
+  </section>
+
+  <section id="current-state">
+    <h2>Current State Assessment</h2>
+    <p>Baseline metrics from live profiling (June 2026). Use these as the “before” snapshot for measuring improvement.</p>
+
+    <h3><code>facilities</code> <span class="badge badge-supply">Supply</span></h3>
+    <div class="kpi-grid">
+      <div class="kpi"><span class="value">10,088</span><span class="label">Total rows</span></div>
+      <div class="kpi bad"><span class="value">118</span><span class="label">Missing coords</span></div>
+      <div class="kpi warn"><span class="value">462</span><span class="label">Pin not in directory</span></div>
+      <div class="kpi bad"><span class="value">254</span><span class="label">Distinct “states”</span></div>
+      <div class="kpi warn"><span class="value">36%</span><span class="label">Doctors parseable</span></div>
+      <div class="kpi warn"><span class="value">25%</span><span class="label">Beds parseable</span></div>
+    </div>
+    <table>
+      <thead>
+        <tr><th>Issue</th><th>Evidence</th><th>Root cause</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Invalid <code>operatorTypeId</code></td>
+          <td>761 null/blank; values include URL arrays, JSON coordinates, floats</td>
+          <td>Web-scrape column misalignment; no enum validation at ingest</td>
+        </tr>
+        <tr>
+          <td>State field unusable for aggregation</td>
+          <td>254 distinct <code>address_stateOrRegion</code> values; cities/districts used as states (Mumbai, Thane, Malappuram)</td>
+          <td>Free-text geocoding; no reference lookup</td>
+        </tr>
+        <tr>
+          <td>Capacity fields unreliable</td>
+          <td>3,631 doctors / 2,517 beds parse as numeric after regex cleanup</td>
+          <td>Stored as string; mixed units and free text</td>
+        </tr>
+        <tr>
+          <td>Near-duplicates</td>
+          <td>11 extra rows across 9,959 <code>cluster_id</code> groups</td>
+          <td>Multi-source entity resolution incomplete</td>
+        </tr>
+        <tr>
+          <td>Sector skew</td>
+          <td>~88% private, ~5% public</td>
+          <td>Source bias — not a data entry error, but must be documented</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3><code>nfhs_5_district_health_indicators</code> <span class="badge badge-demand">Demand</span></h3>
+    <div class="kpi-grid">
+      <div class="kpi"><span class="value">706</span><span class="label">Rows</span></div>
+      <div class="kpi"><span class="value">698</span><span class="label">Unique districts</span></div>
+      <div class="kpi warn"><span class="value">8</span><span class="label">Homonym districts</span></div>
+      <div class="kpi warn"><span class="value">~50%</span><span class="label">String _pct cols</span></div>
+    </div>
+    <table>
+      <thead>
+        <tr><th>Issue</th><th>Evidence</th><th>Root cause</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>NFHS sentinel values in strings</td>
+          <td><code>*</code> (suppressed), <code>(100.0)</code> (parenthetical), trailing spaces</td>
+          <td>Survey notation preserved; not normalized at load</td>
+        </tr>
+        <tr>
+          <td>Trailing whitespace on keys</td>
+          <td><code>"Adilabad "</code>, <code>"Agra "</code> on <code>district_name</code></td>
+          <td>ETL trim omitted</td>
+        </tr>
+        <tr>
+          <td>State typos</td>
+          <td><code>Maharastra</code> instead of Maharashtra</td>
+          <td>Manual transcription / source typo</td>
+        </tr>
+        <tr>
+          <td>Ambiguous district names</td>
+          <td>Aurangabad, Bilaspur, Bijapur, etc. exist in 2 states each</td>
+          <td>Legitimate homonyms — join must include state</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3><code>india_post_pincode_directory</code> <span class="badge badge-bridge">Bridge</span></h3>
+    <div class="kpi-grid">
+      <div class="kpi"><span class="value">165,627</span><span class="label">Rows</span></div>
+      <div class="kpi warn"><span class="value">1,478</span><span class="label">Multi-district pincodes</span></div>
+      <div class="kpi bad"><span class="value">522</span><span class="label">Facilities fan-out dupes</span></div>
+    </div>
+    <table>
+      <thead>
+        <tr><th>Issue</th><th>Evidence</th><th>Root cause</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>State naming mismatch vs NFHS</td>
+          <td>ALL CAPS (<code>MAHARASHTRA</code>) vs title case (<code>Maharashtra</code>, <code>Andaman &amp; Nicobar Islands</code>)</td>
+          <td>Different source conventions</td>
+        </tr>
+        <tr>
+          <td>One-to-many pincode → district</td>
+          <td>Join inflates 10,088 facilities → 10,110 rows; 522 facilities match multiple districts</td>
+          <td>India Post lists multiple offices per pincode across boundaries</td>
+        </tr>
+        <tr>
+          <td>Coordinates as strings</td>
+          <td><code>latitude</code>, <code>longitude</code> typed as string</td>
+          <td>Schema not enforced at ingest</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Cross-table join health</h3>
+    <div class="kpi-grid">
+      <div class="kpi bad"><span class="value">283</span><span class="label">Districts w/ 0 facilities (strict join)</span></div>
+      <div class="kpi warn"><span class="value">226</span><span class="label">After district-only fallback</span></div>
+      <div class="kpi"><span class="value">9,559</span><span class="label">Unique facilities matched</span></div>
+    </div>
+    <div class="callout critical">
+      <strong>Key insight:</strong> ~40% of NFHS district-rows show zero matched facilities under a strict district+state join. Some of this is real coverage bias; a significant portion is fixable via geography normalization. The curated layer must distinguish <em>“no facilities in dataset”</em> from <em>“join failed.”</em>
+    </div>
+  </section>
+
+  <section id="target-architecture">
+    <h2>Target Architecture</h2>
+    <p>Introduce a curated layer alongside the raw hackathon tables. Raw tables remain read-only; all cleaning happens downstream.</p>
+    <div class="flow">┌─────────────────────────────────────────────────────────────┐
+│  RAW (read-only)                                            │
+│  virtue_foundation_dataset.*                                │
+└────────────┬───────────────────────┬────────────────────────┘
+             │                       │
+             ▼                       ▼
+┌────────────────────────┐  ┌────────────────────────────────┐
+│  REFERENCE             │  │  STAGING (views or tables)     │
+│  ref_state_ut          │  │  stg_facilities                │
+│  ref_district          │  │  stg_nfhs_indicators           │
+│  ref_district_aliases  │  │  stg_pincode_directory         │
+│  ref_operator_type     │  │  stg_facility_specialties      │
+└───────────┬────────────┘  └───────────────┬────────────────┘
+            │                               │
+            └──────────────┬────────────────┘
+                           ▼
+            ┌──────────────────────────────────┐
+            │  CURATED (analysis-ready)          │
+            │  dim_geography                   │
+            │  dim_facility                    │
+            │  fact_nfhs_district_indicators   │
+            │  bridge_pincode_district         │
+            │  agg_district_supply             │
+            │  agg_district_supply_demand_gap  │
+            └──────────────┬───────────────────┘
+                           ▼
+            ┌──────────────────────────────────┐
+            │  QUALITY                         │
+            │  dq_facility_profile             │
+            │  dq_join_coverage                │
+            │  dq_run_summary                  │
+            └──────────────────────────────────┘</div>
+
+    <h3>Curated table definitions</h3>
+    <table>
+      <thead>
+        <tr><th>Table</th><th>Grain</th><th>Purpose</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>dim_geography</code></td>
+          <td>One row per district + state_ut</td>
+          <td>Canonical join keys, NFHS district_id, homonym flag, normalized names</td>
+        </tr>
+        <tr>
+          <td><code>bridge_pincode_district</code></td>
+          <td>One row per pincode (deduped)</td>
+          <td>Primary district assignment per pincode; tie-break rules documented</td>
+        </tr>
+        <tr>
+          <td><code>dim_facility</code></td>
+          <td>One row per <code>unique_id</code></td>
+          <td>Cleaned facility attributes, parsed JSON arrays, geography keys, quality flags</td>
+        </tr>
+        <tr>
+          <td><code>fact_nfhs_district_indicators</code></td>
+          <td>One row per district + state_ut</td>
+          <td>All <code>_pct</code> columns as DOUBLE + metadata columns for suppression/sample-size flags</td>
+        </tr>
+        <tr>
+          <td><code>agg_district_supply</code></td>
+          <td>One row per district + state_ut</td>
+          <td>Facility counts, bed/doctor totals, specialty flags, public/private mix</td>
+        </tr>
+        <tr>
+          <td><code>agg_district_supply_demand_gap</code></td>
+          <td>One row per district + state_ut</td>
+          <td>Joined supply + demand with gap scores and join-confidence flag</td>
+        </tr>
+        <tr>
+          <td><code>dq_run_summary</code></td>
+          <td>One row per pipeline run</td>
+          <td>Pass/fail against thresholds; trend over time</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="phased-plan">
+    <h2>Phased Improvement Plan</h2>
+
+    <div class="phase-card">
+      <h3>Phase 0 — Baseline &amp; guardrails <span class="badge badge-p0">Week 1</span></h3>
+      <p><strong>Goal:</strong> Stop silent bad joins. Document what exists before changing anything.</p>
+      <ul>
+        <li>Snapshot row counts, null rates, and distinct-value counts for all three raw tables.</li>
+        <li>Publish this plan and the <a href="virtue-foundation-gap-analysis-guide.html">gap analysis guide</a> as team references.</li>
+        <li>Add a <code>join_confidence</code> column to any app query: <code>matched</code>, <code>pincode_only</code>, <code>unmatched</code>.</li>
+        <li>Mark raw tables read-only in documentation; route all analytics through curated views.</li>
+      </ul>
+      <p><strong>Exit criteria:</strong> Baseline metrics stored in <code>dq_run_summary</code>; no production query reads raw geography fields without normalization.</p>
+    </div>
+
+    <div class="phase-card">
+      <h3>Phase 1 — Reference geography &amp; join repair <span class="badge badge-p0">Week 1–2</span></h3>
+      <p><strong>Goal:</strong> Fix the highest-impact issue — broken district/state linkage.</p>
+      <ul>
+        <li>Build <code>ref_state_ut</code> with canonical state names, aliases (Orissa→Odisha, Maharastra→Maharashtra, Tamilnadu→Tamil Nadu), and NFHS vs India Post variants.</li>
+        <li>Build <code>ref_district_aliases</code> for spelling variants (Ahmadabad→Ahmedabad, Allahabad→Prayagraj if applicable).</li>
+        <li>Build deduped <code>bridge_pincode_district</code> with documented tie-break: prefer HQ post office, then highest delivery status, then mode district by row count.</li>
+        <li>Produce <code>dim_geography</code> at NFHS grain (706 rows) with <code>is_homonym</code> flag for the 8 ambiguous district names.</li>
+        <li>Backfill facility <code>district_id</code> via pincode bridge; fallback to lat/long reverse lookup only when pincode fails.</li>
+      </ul>
+      <p><strong>Exit criteria:</strong> Strict district+state join match rate ≥ 75% of facilities; zero-facility NFHS districts drops from 283 to &lt; 200 (excluding documented coverage gaps).</p>
+    </div>
+
+    <div class="phase-card">
+      <h3>Phase 2 — Schema normalization &amp; parsing <span class="badge badge-p1">Week 2–3</span></h3>
+      <p><strong>Goal:</strong> Make numeric and structured fields reliably computable.</p>
+      <ul>
+        <li>Parse <code>numberDoctors</code> and <code>capacity</code> into <code>doctors_count</code>, <code>bed_count</code> (nullable INT) with <code>parse_status</code> flag.</li>
+        <li>Normalize <code>operatorTypeId</code> to enum: <code>public</code>, <code>private</code>, <code>unknown</code>; map <code>government</code>→<code>public</code>; quarantine garbage rows.</li>
+        <li>Parse JSON array columns into child tables: <code>dim_facility_specialty</code>, <code>dim_facility_capability</code>, etc.</li>
+        <li>Clean all NFHS string <code>_pct</code> columns: strip whitespace, parse parentheses, map <code>*</code> to NULL with <code>is_suppressed = true</code>.</li>
+        <li>Cast pincode directory lat/long to DOUBLE; validate India bounding box (lat 6–38, lon 68–98).</li>
+      </ul>
+      <p><strong>Exit criteria:</strong> ≥ 95% of NFHS indicator columns queryable as DOUBLE; ≥ 90% of facilities have valid enum operator type; JSON arrays explodable without parse errors on ≥ 99% of rows.</p>
+    </div>
+
+    <div class="phase-card">
+      <h3>Phase 3 — Entity resolution &amp; deduplication <span class="badge badge-p2">Week 3–4</span></h3>
+      <p><strong>Goal:</strong> One facility = one row in <code>dim_facility</code>.</p>
+      <ul>
+        <li>Use <code>cluster_id</code> as primary dedup key; pick canonical row by most complete record (most non-null fields).</li>
+        <li>Secondary dedup: same name + pincode within 100m lat/long → flag as suspected duplicate.</li>
+        <li>Do not hard-delete; write quarantined rows to <code>dim_facility_duplicates</code> with merge rationale.</li>
+      </ul>
+      <p><strong>Exit criteria:</strong> Duplicate rate &lt; 0.1%; dedup rules documented and auditable.</p>
+    </div>
+
+    <div class="phase-card">
+      <h3>Phase 4 — Coverage enrichment &amp; bias documentation <span class="badge badge-p2">Ongoing</span></h3>
+      <p><strong>Goal:</strong> Reduce false “zero supply” signals and set analyst expectations.</p>
+      <ul>
+        <li>Flag districts with <code>supply_coverage_tier</code>: <code>high</code>, <code>medium</code>, <code>low</code>, <code>none_observed</code> based on facility density vs national median.</li>
+        <li>Add <code>data_source_completeness_note</code> to gap outputs: “supply side reflects scraped private facilities; not a government census.”</li>
+        <li>Optional: enrich with open government facility registries (NHRR, state health dept lists) where license permits.</li>
+        <li>Impute pincode from lat/long for the 462 facilities with orphan pincodes (reverse geocode).</li>
+      </ul>
+      <p><strong>Exit criteria:</strong> Every zero-supply district in gap output carries a coverage-confidence label; analysts cannot misread missing data as confirmed absence.</p>
+    </div>
+
+    <div class="phase-card">
+      <h3>Phase 5 — Continuous quality monitoring <span class="badge badge-p3">Steady state</span></h3>
+      <p><strong>Goal:</strong> Prevent regression when source data refreshes.</p>
+      <ul>
+        <li>Databricks Lakeflow job or DLT pipeline runs curation + DQ checks on schedule.</li>
+        <li>Alert when any DQ threshold breaches (see Validation section).</li>
+        <li>Version curated tables; retain <code>dq_run_summary</code> history.</li>
+        <li>Integrate curated views into hackathon app SQL (<code>scenario_district_impact.sql</code>, etc.).</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="table-remediation">
+    <h2>Table-by-Table Remediation</h2>
+
+    <h3><code>facilities</code> → <code>dim_facility</code></h3>
+    <table>
+      <thead>
+        <tr><th>Raw column</th><th>Curated output</th><th>Rule</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>unique_id</code></td>
+          <td><code>facility_id</code></td>
+          <td>Primary key; trim whitespace</td>
+        </tr>
+        <tr>
+          <td><code>address_stateOrRegion</code></td>
+          <td><code>state_ut_raw</code>, <code>state_ut_id</code></td>
+          <td>Keep raw; derive canonical state via pincode bridge + alias table. Do not trust for joins.</td>
+        </tr>
+        <tr>
+          <td><code>address_zipOrPostcode</code></td>
+          <td><code>pincode</code></td>
+          <td>LPAD to 6 digits; validate <code>^[1-9][0-9]{5}$</code>; NULL if invalid</td>
+        </tr>
+        <tr>
+          <td><code>operatorTypeId</code></td>
+          <td><code>operator_type</code></td>
+          <td>Whitelist map; else <code>unknown</code> + <code>operator_type_raw</code> preserved</td>
+        </tr>
+        <tr>
+          <td><code>numberDoctors</code></td>
+          <td><code>doctors_count</code></td>
+          <td><code>TRY_CAST(REGEXP_REPLACE(col, '[^0-9.]', '') AS INT)</code>; NULL if &gt; 10,000 or = 0 with conflicting text</td>
+        </tr>
+        <tr>
+          <td><code>capacity</code></td>
+          <td><code>bed_count</code></td>
+          <td>Same parse pattern; flag outliers (&gt; 5,000 beds) for review</td>
+        </tr>
+        <tr>
+          <td><code>latitude</code>, <code>longitude</code></td>
+          <td><code>lat</code>, <code>lon</code>, <code>coord_valid</code></td>
+          <td>Must fall within India bbox; swap if lat/lon reversed</td>
+        </tr>
+        <tr>
+          <td><code>specialties</code>, etc.</td>
+          <td>Child table rows</td>
+          <td><code>FROM_JSON(col, 'ARRAY&lt;STRING&gt;')</code> then LATERAL VIEW explode</td>
+        </tr>
+        <tr>
+          <td><code>cluster_id</code></td>
+          <td><code>cluster_id</code>, <code>is_canonical</code></td>
+          <td>Dedup within cluster; one canonical row per cluster</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h4>Operator type whitelist</h4>
+    <pre>CASE
+  WHEN LOWER(TRIM(operatorTypeId)) IN ('public', 'government') THEN 'public'
+  WHEN LOWER(TRIM(operatorTypeId)) = 'private' THEN 'private'
+  WHEN operatorTypeId IS NULL OR TRIM(operatorTypeId) IN ('', 'null') THEN 'unknown'
+  ELSE 'unknown'  -- quarantine: URLs, JSON, floats logged to dq_facility_profile
+END</pre>
+
+    <h3><code>nfhs_5_district_health_indicators</code> → <code>fact_nfhs_district_indicators</code></h3>
+    <table>
+      <thead>
+        <tr><th>Transformation</th><th>Detail</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Trim keys</td>
+          <td><code>TRIM(district_name)</code>, <code>TRIM(state_ut)</code> on every row</td>
+        </tr>
+        <tr>
+          <td>Fix known typos</td>
+          <td><code>Maharastra</code> → <code>Maharashtra</code>; apply alias table for others</td>
+        </tr>
+        <tr>
+          <td>Parse string percentages</td>
+          <td>Strip <code>()</code>; <code>*</code> → NULL + <code>is_suppressed</code>; cast to DOUBLE</td>
+        </tr>
+        <tr>
+          <td>Preserve metadata</td>
+          <td>For each indicator: <code>{name}_value</code>, <code>{name}_is_suppressed</code>, <code>{name}_raw</code></td>
+        </tr>
+        <tr>
+          <td>Homonym flag</td>
+          <td><code>is_homonym_district = true</code> where district name appears in &gt; 1 state</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h4>NFHS percentage parse function</h4>
+    <pre>CREATE OR REPLACE FUNCTION parse_nfhs_pct(raw STRING)
+RETURNS STRUCT&lt;value: DOUBLE, is_suppressed: BOOLEAN, raw_value: STRING&gt;
+RETURN CASE
+  WHEN raw IS NULL OR TRIM(raw) = '' THEN named_struct('value', CAST(NULL AS DOUBLE), 'is_suppressed', false, 'raw_value', raw)
+  WHEN TRIM(raw) = '*' THEN named_struct('value', CAST(NULL AS DOUBLE), 'is_suppressed', true, 'raw_value', raw)
+  ELSE named_struct(
+    'value',
+    TRY_CAST(REGEXP_REPLACE(TRIM(raw), '[()]', '') AS DOUBLE),
+    'is_suppressed', false,
+    'raw_value', raw
+  )
+END;</pre>
+
+    <h3><code>india_post_pincode_directory</code> → <code>bridge_pincode_district</code></h3>
+    <table>
+      <thead>
+        <tr><th>Step</th><th>Rule</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Normalize state</td>
+          <td>Join <code>statename</code> to <code>ref_state_ut</code> via UPPER/TRIM alias match</td>
+        </tr>
+        <tr>
+          <td>Normalize district</td>
+          <td>TRIM, title-case; join to <code>ref_district_aliases</code></td>
+        </tr>
+        <tr>
+          <td>Deduplicate pincode</td>
+          <td>One row per pincode using ROW_NUMBER() — prefer <code>officetype = 'HO'</code>, then <code>delivery = 'delivery'</code>, then highest row count per district</td>
+        </tr>
+        <tr>
+          <td>Flag ambiguity</td>
+          <td><code>pincode_is_ambiguous = true</code> where raw table has &gt; 1 distinct district</td>
+        </tr>
+        <tr>
+          <td>Cast coordinates</td>
+          <td><code>TRY_CAST(latitude AS DOUBLE)</code>, same for longitude</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="join-layer">
+    <h2>Geographic Join Layer</h2>
+    <p>The curated join path replaces ad-hoc TRIM/LOWER in application SQL.</p>
+    <div class="flow">dim_facility
+  │  pincode ──► bridge_pincode_district ──► dim_geography.district_id
+  │
+  └ (fallback) lat/lon ──► nearest dim_geography centroid [flag: geo_fallback]
+
+fact_nfhs_district_indicators
+  └──► dim_geography.district_id  (via normalized district_name + state_ut)
+
+agg_district_supply = GROUP BY district_id FROM dim_facility
+agg_district_supply_demand_gap = agg_district_supply FULL OUTER JOIN fact_nfhs ...</div>
+
+    <h3>Join confidence levels</h3>
+    <table>
+      <thead>
+        <tr><th>Level</th><th>Condition</th><th>Analyst action</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>high</code></td>
+          <td>Pincode matched deduped bridge; district+state in <code>dim_geography</code></td>
+          <td>Safe for district gap metrics</td>
+        </tr>
+        <tr>
+          <td><code>medium</code></td>
+          <td>Pincode ambiguous OR district alias used OR coord fallback</td>
+          <td>Include in aggregates; flag in UI</td>
+        </tr>
+        <tr>
+          <td><code>low</code></td>
+          <td>Pincode missing; only state inferred from raw field</td>
+          <td>State-level only; exclude from district drill-down</td>
+        </tr>
+        <tr>
+          <td><code>unmatched</code></td>
+          <td>No geography resolved</td>
+          <td>Quarantine; show in DQ dashboard</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Reference tables to maintain</h3>
+    <table>
+      <thead>
+        <tr><th>Table</th><th>Example rows</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>ref_state_ut</code></td>
+          <td><code>Maharastra</code> → <code>Maharashtra</code>; <code>MAHARASHTRA</code> → <code>Maharashtra</code>; <code>Andaman &amp; Nicobar Islands</code> ↔ <code>ANDAMAN AND NICOBAR ISLANDS</code></td>
+        </tr>
+        <tr>
+          <td><code>ref_district_aliases</code></td>
+          <td><code>Ahmadabad</code> → <code>Ahmedabad</code>; city-as-state mappings (Mumbai → Maharashtra, district Mumbai Suburban)</td>
+        </tr>
+        <tr>
+          <td><code>ref_operator_type</code></td>
+          <td>Allowed enum values + known garbage patterns to quarantine</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="validation">
+    <h2>Validation Rules &amp; Monitoring</h2>
+    <p>Run these checks after every curation pipeline execution. Fail the job (or warn) when thresholds breach.</p>
+
+    <h3>Hard gates (pipeline fails)</h3>
+    <table>
+      <thead>
+        <tr><th>Check</th><th>Rule</th><th>Current</th><th>Target</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Facility row count drift</td>
+          <td><code>ABS(curated − raw) / raw &lt; 5%</code></td>
+          <td>—</td>
+          <td>After dedup only; document expected shrinkage</td>
+        </tr>
+        <tr>
+          <td>NFHS row count</td>
+          <td>Must equal 706 (or documented source change)</td>
+          <td>706</td>
+          <td>706</td>
+        </tr>
+        <tr>
+          <td>Primary key uniqueness</td>
+          <td><code>dim_facility.facility_id</code> unique</td>
+          <td>—</td>
+          <td>100%</td>
+        </tr>
+        <tr>
+          <td>Geography FK</td>
+          <td>Every <code>district_id</code> in facts exists in <code>dim_geography</code></td>
+          <td>—</td>
+          <td>100%</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Soft gates (warn + dashboard)</h3>
+    <table>
+      <thead>
+        <tr><th>Check</th><th>Rule</th><th>Current</th><th>Target</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Facility geography match rate</td>
+          <td>% facilities with <code>join_confidence IN ('high','medium')</code></td>
+          <td>~95%</td>
+          <td>≥ 97%</td>
+        </tr>
+        <tr>
+          <td>NFHS districts with zero supply</td>
+          <td>Count where <code>facility_count = 0</code></td>
+          <td>283</td>
+          <td>&lt; 200 (with coverage flags)</td>
+        </tr>
+        <tr>
+          <td>Pincode fan-out rate</td>
+          <td>% facilities mapping to &gt; 1 district before dedup</td>
+          <td>~5.2%</td>
+          <td>0% in curated bridge</td>
+        </tr>
+        <tr>
+          <td>Operator type unknown rate</td>
+          <td>% <code>operator_type = 'unknown'</code></td>
+          <td>~7.5%</td>
+          <td>&lt; 3%</td>
+        </tr>
+        <tr>
+          <td>Bed count parse rate</td>
+          <td>% non-null <code>bed_count</code></td>
+          <td>25%</td>
+          <td>≥ 25% (improve via enrichment, not fabrication)</td>
+        </tr>
+        <tr>
+          <td>Valid coordinates</td>
+          <td>% facilities with <code>coord_valid = true</code></td>
+          <td>~99%</td>
+          <td>≥ 99.5%</td>
+        </tr>
+        <tr>
+          <td>NFHS suppressed indicator rate</td>
+          <td>Per-column % where <code>is_suppressed</code></td>
+          <td>~3% on vax col</td>
+          <td>Tracked, not “fixed”</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Sample DQ summary query</h3>
+    <pre>INSERT INTO virtue_foundation_curated.dq_run_summary
+SELECT
+  current_timestamp() AS run_at,
+  COUNT(*) AS facility_count,
+  AVG(CASE WHEN join_confidence = 'high' THEN 1.0 ELSE 0.0 END) AS pct_high_confidence_join,
+  SUM(CASE WHEN operator_type = 'unknown' THEN 1 ELSE 0 END) AS unknown_operator_count,
+  SUM(CASE WHEN bed_count IS NOT NULL THEN 1 ELSE 0 END) AS bed_count_populated,
+  SUM(CASE WHEN coord_valid THEN 1 ELSE 0 END) AS valid_coord_count
+FROM virtue_foundation_curated.dim_facility;</pre>
+  </section>
+
+  <section id="success-metrics">
+    <h2>Success Metrics</h2>
+    <p>Measure progress at the end of each phase. Target dates assume a hackathon timeline; adjust for production use.</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Metric</th>
+          <th>Baseline</th>
+          <th>Phase 1 target</th>
+          <th>Phase 2 target</th>
+          <th>Final target</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Facilities with high-confidence district assignment</td>
+          <td>~90%</td>
+          <td>95%</td>
+          <td>97%</td>
+          <td>≥ 97%</td>
+        </tr>
+        <tr>
+          <td>NFHS districts with ≥ 1 matched facility</td>
+          <td>60%</td>
+          <td>72%</td>
+          <td>75%</td>
+          <td>≥ 75%</td>
+        </tr>
+        <tr>
+          <td>Pincode join fan-out (facilities counted &gt; once)</td>
+          <td>522</td>
+          <td>0</td>
+          <td>0</td>
+          <td>0</td>
+        </tr>
+        <tr>
+          <td>Queryable NFHS indicator columns (typed DOUBLE)</td>
+          <td>~50%</td>
+          <td>50%</td>
+          <td>100%</td>
+          <td>100%</td>
+        </tr>
+        <tr>
+          <td>Operator type classified (public/private/unknown)</td>
+          <td>~92%</td>
+          <td>93%</td>
+          <td>97%</td>
+          <td>≥ 97%</td>
+        </tr>
+        <tr>
+          <td>Gap analysis queries using curated layer</td>
+          <td>0%</td>
+          <td>50%</td>
+          <td>100%</td>
+          <td>100%</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <strong>Non-goals:</strong> Do not impute fake facilities to “fill” zero-supply districts. Do not coerce suppressed NFHS values (<code>*</code>) into zeros. Do not overwrite raw source data — curated tables carry the corrections with lineage.
+    </div>
+  </section>
+
+  <section id="implementation">
+    <h2>Implementation Checklist</h2>
+    <p>Use this checklist when standing up the curation pipeline in Databricks (DLT, Lakeflow Job, or notebook workflow).</p>
+
+    <h3>Infrastructure</h3>
+    <ul class="checklist">
+      <li>Create schema <code>virtue_foundation_curated</code> in the same catalog (or team catalog)</li>
+      <li>Create reference tables: <code>ref_state_ut</code>, <code>ref_district_aliases</code>, <code>ref_operator_type</code></li>
+      <li>Deploy staging views reading from raw <code>virtue_foundation_dataset</code></li>
+      <li>Deploy curated tables with COMMENT metadata on every column</li>
+      <li>Schedule daily or on-demand refresh job</li>
+      <li>Grant hackathon app service principal SELECT on curated schema</li>
+    </ul>
+
+    <h3>Application integration</h3>
+    <ul class="checklist">
+      <li>Update <code>scenario_district_impact.sql</code> to read <code>agg_district_supply_demand_gap</code></li>
+      <li>Update <code>district_options.sql</code> to use <code>dim_geography</code></li>
+      <li>Add join-confidence badge in analytics UI for districts with <code>medium</code> or <code>low</code> confidence</li>
+      <li>Link this plan from app README or internal docs</li>
+    </ul>
+
+    <h3>Documentation &amp; handoff</h3>
+    <ul class="checklist">
+      <li>Column-level data dictionary for curated tables</li>
+      <li>Known limitations doc (coverage bias, suppressed NFHS values)</li>
+      <li>DQ dashboard (AI/BI or notebook) reading <code>dq_run_summary</code></li>
+      <li>Runbook for source data refresh and alias table updates</li>
+    </ul>
+
+    <h3>Suggested Databricks artifacts</h3>
+    <table>
+      <thead>
+        <tr><th>Artifact</th><th>Location (proposed)</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Curation notebook or DLT pipeline</td><td><code>notebooks/virtue_foundation/curate_dataset.py</code></td></tr>
+        <tr><td>Reference seed CSVs</td><td><code>data/reference/ref_state_ut.csv</code>, <code>ref_district_aliases.csv</code></td></tr>
+        <tr><td>DQ checks</td><td><code>notebooks/virtue_foundation/dq_checks.sql</code></td></tr>
+        <tr><td>Bundle resource (optional)</td><td>Add job to <code>hackathon-app/databricks.yml</code> or separate bundle</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <footer>
+    Virtue Foundation Data Quality Improvement Plan · June 2026<br>
+    Companion: <a href="virtue-foundation-gap-analysis-guide.html">Gap Analysis Guide</a>
+  </footer>
+
+</div>
+
+</body>
+</html>
