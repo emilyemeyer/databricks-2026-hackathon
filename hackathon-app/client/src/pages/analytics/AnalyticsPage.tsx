@@ -231,8 +231,7 @@ function HypertensionGapSection() {
         <p className="text-sm text-muted-foreground mt-2 max-w-3xl">
           Compares NFHS-5 women&apos;s hypertension prevalence (demand) with cardiac-specialty
           facility counts (supply) at the district level. A high cardiac desert risk means
-          relatively high hypertension burden combined with low cardiac supply — not acute event
-          incidence.
+          relatively high hypertension burden combined with low cardiac supply.
         </p>
       </div>
 
