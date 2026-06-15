@@ -1,0 +1,7 @@
+raw_pattern,operator_type,is_valid,notes
+public,public,true,whitelist
+government,public,true,mapped_to_public
+private,private,true,whitelist
+unknown,unknown,false,null_or_blank
+null,unknown,false,null_or_blank
+,unknown,false,null_or_blank

@@ -444,7 +444,7 @@ export function AnalyticsPage() {
       <div>
         <h2 className="text-2xl font-bold text-foreground">Virtue Foundation Analytics</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Healthcare facilities across India from the DAIS 2026 hackathon dataset.
+          Cleaned facility metrics from <code className="text-xs">dais_2026.hackathon.facility</code>.
         </p>
       </div>
 

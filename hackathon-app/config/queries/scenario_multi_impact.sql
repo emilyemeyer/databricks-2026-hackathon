@@ -1,40 +1,34 @@
 -- @param facilities_json STRING
-WITH pincode_district AS (
-  SELECT DISTINCT
-    TRIM(pincode) AS pincode,
-    TRIM(district) AS district_name,
-    TRIM(statename) AS state_raw
-  FROM databricks_virtue_foundation_dataset_dais_2026.virtue_foundation_dataset.india_post_pincode_directory
-  WHERE pincode IS NOT NULL AND district IS NOT NULL
+WITH demand AS (
+  SELECT
+    district_name,
+    state_ut,
+    MAX(CASE WHEN indicator_key = 'households_surveyed' THEN indicator_value END) AS households_surveyed,
+    MAX(CASE WHEN indicator_key = 'w15_plus_with_high_bp_sys_gte_140_mmhg_and_or_dia_gte_90_mm_pct' THEN indicator_value END) AS hypertension_demand_pct,
+    MAX(CASE WHEN indicator_key = 'w15_plus_with_high_or_very_high_gt_140_mg_dl_blood_sugar_or_pct' THEN indicator_value END) AS diabetes_demand_pct
+  FROM dais_2026.hackathon.health_indicator
+  GROUP BY district_name, state_ut
+),
+cardiac_by_district AS (
+  SELECT
+    f.district_name,
+    f.state_ut,
+    COUNT(DISTINCT f.facility_id) AS cardiac_facility_count
+  FROM dais_2026.hackathon.facility f
+  INNER JOIN dais_2026.hackathon.facility_specialty fs ON f.facility_id = fs.facility_id
+  INNER JOIN dais_2026.hackathon.specialty_category_mapping m ON fs.specialty = m.specialties
+  WHERE CAST(m.category AS STRING) LIKE '%Cardiovascular Care%'
+  GROUP BY f.district_name, f.state_ut
 ),
 facilities_by_district AS (
   SELECT
-    TRIM(LOWER(pd.district_name)) AS district_key,
-    TRIM(pd.district_name) AS district_name,
-    TRIM(LOWER(pd.state_raw)) AS state_key,
+    f.district_name,
+    f.state_ut,
     COUNT(*) AS facility_count,
-    SUM(
-      CASE
-        WHEN LOWER(f.specialties) RLIKE 'cardiology|cardiac|interventionalcardiology|cardiacsurgery'
-        THEN 1
-        ELSE 0
-      END
-    ) AS cardiac_facility_count,
-    SUM(COALESCE(TRY_CAST(REGEXP_REPLACE(f.capacity, '[^0-9.]', '') AS DOUBLE), 0)) AS total_bed_capacity
-  FROM databricks_virtue_foundation_dataset_dais_2026.virtue_foundation_dataset.facilities f
-  INNER JOIN pincode_district pd ON TRIM(f.address_zipOrPostcode) = pd.pincode
-  GROUP BY TRIM(LOWER(pd.district_name)), TRIM(pd.district_name), TRIM(LOWER(pd.state_raw))
-),
-nfhs AS (
-  SELECT
-    TRIM(LOWER(district_name)) AS district_key,
-    TRIM(district_name) AS district_name,
-    TRIM(state_ut) AS state_ut,
-    TRIM(LOWER(state_ut)) AS state_key,
-    w15_plus_with_high_bp_sys_gte_140_mmhg_and_or_dia_gte_90_mm_pct AS hypertension_demand_pct,
-    w15_plus_with_high_or_very_high_gt_140_mg_dl_blood_sugar_or_pct AS diabetes_demand_pct,
-    households_surveyed
-  FROM databricks_virtue_foundation_dataset_dais_2026.virtue_foundation_dataset.nfhs_5_district_health_indicators
+    SUM(COALESCE(f.bed_count, 0)) AS total_bed_capacity
+  FROM dais_2026.hackathon.facility f
+  WHERE f.district_name IS NOT NULL AND f.state_ut IS NOT NULL
+  GROUP BY f.district_name, f.state_ut
 ),
 scenario_facilities AS (
   SELECT
@@ -74,22 +68,25 @@ baseline AS (
   SELECT
     s.district_name,
     s.state_ut,
-    n.hypertension_demand_pct,
-    n.diabetes_demand_pct,
-    n.households_surveyed,
+    d.hypertension_demand_pct,
+    d.diabetes_demand_pct,
+    d.households_surveyed,
     COALESCE(f.facility_count, 0) AS facility_count,
-    COALESCE(f.cardiac_facility_count, 0) AS cardiac_facility_count,
+    COALESCE(c.cardiac_facility_count, 0) AS cardiac_facility_count,
     COALESCE(f.total_bed_capacity, 0) AS total_bed_capacity,
     s.added_facility_count,
     s.added_cardiac_facility_count,
     s.added_bed_capacity
   FROM scenario_by_district s
-  INNER JOIN nfhs n
-    ON s.district_key = n.district_key
-   AND s.state_key = n.state_key
+  INNER JOIN demand d
+    ON TRIM(LOWER(s.district_name)) = TRIM(LOWER(d.district_name))
+   AND TRIM(LOWER(s.state_ut)) = TRIM(LOWER(d.state_ut))
   LEFT JOIN facilities_by_district f
-    ON s.district_key = f.district_key
-   AND s.state_key = f.state_key
+    ON TRIM(LOWER(s.district_name)) = TRIM(LOWER(f.district_name))
+   AND TRIM(LOWER(s.state_ut)) = TRIM(LOWER(f.state_ut))
+  LEFT JOIN cardiac_by_district c
+    ON TRIM(LOWER(s.district_name)) = TRIM(LOWER(c.district_name))
+   AND TRIM(LOWER(s.state_ut)) = TRIM(LOWER(c.state_ut))
 ),
 scenario AS (
   SELECT

@@ -17,6 +17,84 @@ declare module "@databricks/appkit-ui/react" {
           state_ut: string;
         }>;
       };
+    dq_gap_summary: {
+        name: "dq_gap_summary";
+        parameters: Record<string, never>;
+        result: Array<{
+          /** @sqlType STRING */
+          gap_type: string;
+          /** @sqlType STRING */
+          severity: string;
+          /** @sqlType BIGINT */
+          open_gap_count: number;
+        }>;
+      };
+    dq_gaps_open: {
+        name: "dq_gaps_open";
+        parameters: {
+          /** STRING - use sql.string() */
+          _refresh: SQLStringMarker;
+        };
+        result: Array<{
+          /** @sqlType STRING */
+          gap_id: string;
+          /** @sqlType STRING */
+          gap_type: string;
+          /** @sqlType STRING */
+          severity: string;
+          /** @sqlType STRING */
+          entity_type: string;
+          /** @sqlType STRING */
+          entity_key: string;
+          /** @sqlType STRING */
+          entity_label: string;
+          /** @sqlType STRING */
+          field_name: string;
+          /** @sqlType STRING */
+          current_value: string;
+          /** @sqlType STRING */
+          suggested_fix: string;
+          /** @sqlType STRING */
+          fix_action: string;
+          /** @sqlType STRING */
+          fix_payload: string;
+          /** @sqlType STRING */
+          status: string;
+          /** @sqlType STRING */
+          resolution_notes: string;
+          /** @sqlType TIMESTAMP */
+          updated_at: string;
+        }>;
+      };
+    dq_metrics: {
+        name: "dq_metrics";
+        parameters: {
+          /** STRING - use sql.string() */
+          _refresh: SQLStringMarker;
+        };
+        result: Array<{
+          /** @sqlType STRING */
+          metric_key: string;
+          /** @sqlType STRING */
+          metric_group: string;
+          /** @sqlType STRING */
+          metric_label: string;
+          /** @sqlType DOUBLE */
+          actual_value: number;
+          /** @sqlType DOUBLE */
+          expected_value: number;
+          /** @sqlType STRING */
+          unit: string;
+          /** @sqlType STRING */
+          severity: string;
+          /** @sqlType STRING */
+          status: string;
+          /** @sqlType STRING */
+          description: string;
+          /** @sqlType TIMESTAMP */
+          measured_at: string;
+        }>;
+      };
     facilities_by_state: {
         name: "facilities_by_state";
         parameters: Record<string, never>;
@@ -60,6 +138,28 @@ declare module "@databricks/appkit-ui/react" {
           value: string;
         }>;
       };
+    mapping_facility_specialty: {
+        name: "mapping_facility_specialty";
+        parameters: Record<string, never>;
+        result: Array<{
+          /** @sqlType STRING */
+          facility_id: string;
+          /** @sqlType STRING */
+          facility_name: string;
+          /** @sqlType STRING */
+          specialty: string;
+          /** @sqlType STRING */
+          specialty_category: string;
+        }>;
+      };
+    mapping_health_indicator_specialty: {
+        name: "mapping_health_indicator_specialty";
+        parameters: Record<string, never>;
+        result: Array<{
+          /** @sqlType STRING */
+          indicator_key: string;
+          /** @sqlType STRING */
+          specialty_category: string;
     hypertension_gap_by_district: {
         name: "hypertension_gap_by_district";
         parameters: Record<string, never>;
@@ -242,9 +342,9 @@ declare module "@databricks/appkit-ui/react" {
           scenario_cardiac_facility_count: number;
           /** @sqlType BIGINT */
           delta_cardiac_facility_count: number;
-          /** @sqlType DOUBLE */
+          /** @sqlType BIGINT */
           baseline_bed_capacity: number;
-          /** @sqlType DOUBLE */
+          /** @sqlType BIGINT */
           scenario_bed_capacity: number;
           /** @sqlType BIGINT */
           delta_bed_capacity: number;
@@ -256,6 +356,22 @@ declare module "@databricks/appkit-ui/react" {
           delta_supply_demand_gap: number;
           /** @sqlType DOUBLE */
           nfhs_households_surveyed: number;
+        }>;
+      };
+    specialty_categories: {
+        name: "specialty_categories";
+        parameters: Record<string, never>;
+        result: Array<{
+          /** @sqlType STRING */
+          specialty_category: string;
+        }>;
+      };
+    specialty_options: {
+        name: "specialty_options";
+        parameters: Record<string, never>;
+        result: Array<{
+          /** @sqlType STRING */
+          specialty: string;
         }>;
       };
   }

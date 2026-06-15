@@ -1,0 +1,10 @@
+alias,canonical_district,canonical_state_ut,notes
+Ahmadabad,Ahmedabad,Gujarat,spelling_variant
+Allahabad,Prayagraj,Uttar Pradesh,renamed_district
+Bangalore,Bengaluru Urban,Karnataka,renamed_city
+Bangalore Urban,Bengaluru Urban,Karnataka,renamed_district
+Gurgaon,Gurugram,Haryana,renamed_district
+KUMURAM BHEEM ASIFABAD,Kumuram Bheem Asifabad,Telangana,india_post_casing
+MUMBAI,Mumbai,Maharashtra,india_post_casing
+Mumbai Suburban,Mumbai Suburban,Maharashtra,city_as_state
+Mumbai,Mumbai Suburban,Maharashtra,city_facility_to_district
