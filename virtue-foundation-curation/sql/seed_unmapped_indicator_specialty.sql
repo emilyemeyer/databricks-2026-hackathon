@@ -17,8 +17,8 @@ SELECT
   -- Respiratory
     WHEN hi.indicator_key RLIKE '(respiratory_infection|_ari_|fever_or_symptoms_of_ari)' THEN 'Respiratory & Pulmonary Care'
   -- Women's health (maternal, reproductive, FP)
-    WHEN hi.indicator_key RLIKE '(^fp_|family_planning|unmet_spacing|unmet_total|pregnant_|mothers_|mother_|anc_visit|pnc_from|mcp_card|institutional_birth|home_birth|delivery|births_|csection|sex_ratio|menstrual_hygiene|w15_19_who_were_already_mothers|w20_24_married|registered_pregnancies)' THEN 'Women's Health'
-    WHEN hi.indicator_key RLIKE 'average_out_of_pocket_expenditure_per_delivery' THEN 'Women's Health'
+    WHEN hi.indicator_key RLIKE '(^fp_|family_planning|unmet_spacing|unmet_total|pregnant_|mothers_|mother_|anc_visit|pnc_from|mcp_card|institutional_birth|home_birth|delivery|births_|csection|sex_ratio|menstrual_hygiene|w15_19_who_were_already_mothers|w20_24_married|registered_pregnancies)' THEN 'Women''s Health'
+    WHEN hi.indicator_key RLIKE 'average_out_of_pocket_expenditure_per_delivery' THEN 'Women''s Health'
   -- Mental / behavioral (substance use)
     WHEN hi.indicator_key RLIKE '(alcohol|tobacco)' THEN 'Mental Health & Behavioral Health'
   -- Primary care / general population health

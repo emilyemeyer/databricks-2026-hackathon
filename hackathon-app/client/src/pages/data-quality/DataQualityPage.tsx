@@ -202,6 +202,7 @@ function MetricsGrid({ refreshKey, onRetry }: { refreshKey: number; onRetry: () 
 function GapFixDialog({
   gap,
   categories,
+  categoriesLoading,
   specialtyOptions,
   specialtiesLoading,
   open,
@@ -212,6 +213,7 @@ function GapFixDialog({
 }: {
   gap: DqGapRow | null;
   categories: string[];
+  categoriesLoading: boolean;
   specialtyOptions: string[];
   specialtiesLoading: boolean;
   open: boolean;
@@ -408,18 +410,22 @@ function GapFixDialog({
               </div>
               <div className="space-y-2">
                 <Label>Category</Label>
-                <Select value={category} onValueChange={setCategory}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-72">
-                    {categories.map((item) => (
-                      <SelectItem key={item} value={item}>
-                        {item}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {categoriesLoading ? (
+                  <Skeleton className="h-10 w-full" />
+                ) : (
+                  <Select value={category} onValueChange={setCategory}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-72 z-[200]" position="popper">
+                      {categories.map((item) => (
+                        <SelectItem key={item} value={item}>
+                          {item}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
             </>
           )}
@@ -432,18 +438,22 @@ function GapFixDialog({
               </div>
               <div className="space-y-2">
                 <Label>Specialty category</Label>
-                <Select value={specialtyCategory} onValueChange={setSpecialtyCategory}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-72">
-                    {categories.map((item) => (
-                      <SelectItem key={item} value={item}>
-                        {item}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {categoriesLoading ? (
+                  <Skeleton className="h-10 w-full" />
+                ) : (
+                  <Select value={specialtyCategory} onValueChange={setSpecialtyCategory}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-72 z-[200]" position="popper">
+                      {categories.map((item) => (
+                        <SelectItem key={item} value={item}>
+                          {item}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
             </>
           )}
@@ -587,7 +597,7 @@ function GapsPanel({
   const [selectedGap, setSelectedGap] = useState<DqGapRow | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const { data: gaps, loading, error } = useAnalyticsQuery('dq_gaps_open', gapParams);
-  const { data: categories } = useAnalyticsQuery('specialty_categories', undefined, {
+  const { data: categories, loading: categoriesLoading } = useAnalyticsQuery('specialty_categories', undefined, {
     autoStart: dialogOpen,
   });
   const { data: specialtyRows, loading: specialtiesLoading } = useAnalyticsQuery(
@@ -599,8 +609,8 @@ function GapsPanel({
   const categoryOptions = useMemo(
     () =>
       (categories ?? [])
-        .map((row) => toDisplayString(row.specialty_category))
-        .filter(isRenderableSpecialtyCode),
+        .map((row) => toRawString(row.specialty_category).trim())
+        .filter((item) => item.length > 0),
     [categories],
   );
 
@@ -739,6 +749,7 @@ function GapsPanel({
       <GapFixDialog
         gap={selectedGap}
         categories={categoryOptions}
+        categoriesLoading={categoriesLoading}
         specialtyOptions={specialtyOptions}
         specialtiesLoading={specialtiesLoading}
         open={dialogOpen}

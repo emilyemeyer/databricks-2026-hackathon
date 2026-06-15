@@ -145,9 +145,37 @@ LEFT JOIN ref_state_ut rs ON TRIM(n.state_ut) = rs.alias
 
 # COMMAND ----------
 
+def _source_col_populated_expr(column_name: str) -> str:
+    return (
+        f"CASE WHEN f.`{column_name}` IS NOT NULL "
+        f"AND TRIM(CAST(f.`{column_name}` AS STRING)) NOT IN ('', 'null') "
+        f"THEN 1 ELSE 0 END"
+    )
+
+
+facilities_source_cols = spark.table(f"{RAW}.facilities").columns
+source_populated_count_sql = " + ".join(
+    _source_col_populated_expr(col) for col in facilities_source_cols
+)
+
+omitted_sparse = spark.sql(f"""
+SELECT COUNT(*) AS omitted
+FROM {RAW}.facilities f
+WHERE ({source_populated_count_sql}) <= 1
+""").collect()[0]["omitted"]
+print(
+    f"Omitting {omitted_sparse} sparse facility source rows "
+    "(all columns null except at most one)"
+)
+
 spark.sql(f"""
 CREATE OR REPLACE TABLE {TARGET}.facility AS
-WITH base AS (
+WITH source_filtered AS (
+  SELECT f.*
+  FROM {RAW}.facilities f
+  WHERE ({source_populated_count_sql}) > 1
+),
+base AS (
   SELECT
     TRIM(f.unique_id) AS facility_id,
     TRIM(f.name) AS facility_name,
@@ -194,7 +222,8 @@ WITH base AS (
       CASE WHEN f.longitude IS NOT NULL THEN 1 ELSE 0 END +
       CASE WHEN f.specialties IS NOT NULL AND TRIM(f.specialties) NOT IN ('', 'null') THEN 1 ELSE 0 END
     ) AS completeness_score
-  FROM {RAW}.facilities f
+  FROM source_filtered f
+  WHERE TRIM(f.unique_id) RLIKE '^[0-9a-fA-F]{{8}}-[0-9a-fA-F]{{4}}-[0-9a-fA-F]{{4}}-[0-9a-fA-F]{{4}}-[0-9a-fA-F]{{12}}$'
 ),
 with_geo AS (
   SELECT
@@ -244,7 +273,104 @@ SELECT
   join_confidence
 FROM deduped
 WHERE rn = 1
+  AND pincode IS NOT NULL
+  AND join_confidence IN ('high', 'medium')
+  AND coord_valid = true
+  AND facility_type IS NOT NULL
+  AND TRIM(facility_type) NOT IN ('', 'null')
+  AND NOT (facility_type RLIKE '^[0-9.]+$')
+  AND NOT (
+    operator_type = 'unknown'
+    AND operator_type_raw IS NOT NULL
+    AND TRIM(operator_type_raw) NOT IN ('', 'null')
+  )
+  AND specialties_raw IS NOT NULL
+  AND TRIM(specialties_raw) NOT IN ('', 'null')
+  AND specialties_raw LIKE '[%'
 """)
+
+omitted_quality = spark.sql(f"""
+WITH source_filtered AS (
+  SELECT f.*
+  FROM {RAW}.facilities f
+  WHERE ({source_populated_count_sql}) > 1
+),
+base AS (
+  SELECT
+    TRIM(f.unique_id) AS facility_id,
+    CASE
+      WHEN f.address_zipOrPostcode RLIKE '^[1-9][0-9]{{5}}$' THEN TRIM(f.address_zipOrPostcode)
+      WHEN REGEXP_REPLACE(TRIM(f.address_zipOrPostcode), '[^0-9]', '') RLIKE '^[1-9][0-9]{{5}}$'
+        THEN LPAD(REGEXP_REPLACE(TRIM(f.address_zipOrPostcode), '[^0-9]', ''), 6, '0')
+      ELSE NULL
+    END AS pincode,
+    TRIM(f.operatorTypeId) AS operator_type_raw,
+    CASE
+      WHEN LOWER(TRIM(f.operatorTypeId)) IN ('public', 'government') THEN 'public'
+      WHEN LOWER(TRIM(f.operatorTypeId)) = 'private' THEN 'private'
+      ELSE 'unknown'
+    END AS operator_type,
+    CASE
+      WHEN f.latitude BETWEEN 6 AND 38 AND f.longitude BETWEEN 68 AND 98 THEN true
+      WHEN f.longitude BETWEEN 6 AND 38 AND f.latitude BETWEEN 68 AND 98 THEN true
+      ELSE false
+    END AS coord_valid,
+    TRIM(f.facilityTypeId) AS facility_type,
+    TRIM(f.specialties) AS specialties_raw,
+    TRIM(f.cluster_id) AS cluster_id,
+    TRIM(f.address_stateOrRegion) AS state_ut_raw
+  FROM source_filtered f
+  WHERE TRIM(f.unique_id) RLIKE '^[0-9a-fA-F]{{8}}-[0-9a-fA-F]{{4}}-[0-9a-fA-F]{{4}}-[0-9a-fA-F]{{4}}-[0-9a-fA-F]{{12}}$'
+),
+with_geo AS (
+  SELECT
+    b.*,
+    CASE
+      WHEN g.district_id IS NOT NULL AND NOT COALESCE(p.pincode_is_ambiguous, false) THEN 'high'
+      WHEN g.district_id IS NOT NULL THEN 'medium'
+      WHEN rs.canonical_state_ut IS NOT NULL THEN 'low'
+      ELSE 'unmatched'
+    END AS join_confidence
+  FROM base b
+  LEFT JOIN ref_pincode_district p ON b.pincode = p.pincode
+  LEFT JOIN ref_state_ut rs ON TRIM(b.state_ut_raw) = rs.alias
+  LEFT JOIN ref_geography g
+    ON UPPER(TRIM(COALESCE(p.district_name, ''))) = UPPER(TRIM(g.district_name))
+    AND COALESCE(p.state_ut, rs.canonical_state_ut) = g.state_ut
+),
+deduped AS (
+  SELECT
+    *,
+    ROW_NUMBER() OVER (
+      PARTITION BY COALESCE(NULLIF(TRIM(cluster_id), ''), facility_id)
+      ORDER BY facility_id
+    ) AS rn
+  FROM with_geo
+)
+SELECT COUNT(*) AS omitted
+FROM deduped
+WHERE rn = 1
+  AND NOT (
+    pincode IS NOT NULL
+    AND join_confidence IN ('high', 'medium')
+    AND coord_valid = true
+    AND facility_type IS NOT NULL
+    AND TRIM(facility_type) NOT IN ('', 'null')
+    AND NOT (facility_type RLIKE '^[0-9.]+$')
+    AND NOT (
+      operator_type = 'unknown'
+      AND operator_type_raw IS NOT NULL
+      AND TRIM(operator_type_raw) NOT IN ('', 'null')
+    )
+    AND specialties_raw IS NOT NULL
+    AND TRIM(specialties_raw) NOT IN ('', 'null')
+    AND specialties_raw LIKE '[%'
+  )
+""").collect()[0]["omitted"]
+print(
+    f"Omitting {omitted_quality} facility rows failing quality gates "
+    "(bad geo, pincode, coords, type, operator, or specialties)"
+)
 
 spark.sql(f"""
 CREATE TABLE IF NOT EXISTS {TARGET}.facility_correction (
