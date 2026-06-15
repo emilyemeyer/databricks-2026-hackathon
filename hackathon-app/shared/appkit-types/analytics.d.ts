@@ -112,6 +112,8 @@ declare module "@databricks/appkit-ui/react" {
           balance_ratio: number;
           /** @sqlType DOUBLE */
           confidence_score: number;
+          /** @sqlType BIGINT */
+          pincode_count: number;
           /** @sqlType DOUBLE */
           latitude: number;
           /** @sqlType DOUBLE */

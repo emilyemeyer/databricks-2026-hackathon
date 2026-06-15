@@ -33,6 +33,7 @@ district_geo AS (
   SELECT
     UPPER(TRIM(district)) AS district_key,
     COALESCE(sm.norm_state, UPPER(TRIM(statename))) AS state_key,
+    COUNT(DISTINCT pincode) AS pincode_count,
     AVG(TRY_CAST(latitude AS DOUBLE)) AS latitude,
     AVG(TRY_CAST(longitude AS DOUBLE)) AS longitude
   FROM pincode_one p
@@ -133,6 +134,7 @@ SELECT
   b.supply_norm,
   b.balance_ratio,
   b.confidence_score,
+  g.pincode_count,
   g.latitude,
   g.longitude
 FROM balanced b

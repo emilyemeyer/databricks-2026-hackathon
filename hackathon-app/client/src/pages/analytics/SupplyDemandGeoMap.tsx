@@ -5,8 +5,8 @@ import { Label, Slider, useAnalyticsQuery } from '@databricks/appkit-ui/react';
 
 const INDIA_GEOJSON_PATH = '/geo/india-districts.geojson';
 
-const POP_SIZE_MIN = 6;
-const POP_SIZE_MAX = 28;
+const POP_SIZE_MIN = 5;
+const POP_SIZE_MAX = 38;
 
 type GeoRow = {
   district_name: string;
@@ -19,6 +19,7 @@ type GeoRow = {
   supply_norm: number | string;
   balance_ratio: number | string;
   confidence_score: number | string;
+  pincode_count: number | string;
   latitude: number | string;
   longitude: number | string;
 };
@@ -30,21 +31,22 @@ type ScatterPoint = {
   state_ut: string;
   hypertension_pct: number;
   households_surveyed: number;
+  pincode_count: number;
   cardiac_facilities: number;
   total_facilities: number;
   balance_ratio: number;
   confidence_score: number;
 };
 
-function populationSymbolSize(pop: number, popMin: number, popMax: number): number {
-  if (popMax <= popMin) return (POP_SIZE_MIN + POP_SIZE_MAX) / 2;
-  const safeMin = Math.max(popMin, 1);
-  const safeMax = Math.max(popMax, 1);
-  const safePop = Math.max(pop, 1);
+function logSymbolSize(value: number, min: number, max: number): number {
+  if (max <= min) return (POP_SIZE_MIN + POP_SIZE_MAX) / 2;
+  const safeMin = Math.max(min, 1);
+  const safeMax = Math.max(max, 1);
+  const safeValue = Math.max(value, 1);
   const logMin = Math.log(safeMin);
   const logMax = Math.log(safeMax);
   if (logMax <= logMin) return (POP_SIZE_MIN + POP_SIZE_MAX) / 2;
-  const t = (Math.log(safePop) - logMin) / (logMax - logMin);
+  const t = (Math.log(safeValue) - logMin) / (logMax - logMin);
   return POP_SIZE_MIN + t * (POP_SIZE_MAX - POP_SIZE_MIN);
 }
 
@@ -89,10 +91,10 @@ export function SupplyDemandGeoMap() {
     [allRows, minConfidence],
   );
 
-  const popBounds = useMemo(() => {
-    const populations = filteredRows.map((r) => Number(r.households_surveyed));
-    if (populations.length === 0) return { min: 0, max: 1 };
-    return { min: Math.min(...populations), max: Math.max(...populations) };
+  const sizeBounds = useMemo(() => {
+    const values = filteredRows.map((r) => Number(r.pincode_count));
+    if (values.length === 0) return { min: 1, max: 1 };
+    return { min: Math.max(Math.min(...values), 1), max: Math.max(Math.max(...values), 1) };
   }, [filteredRows]);
 
   const option = useMemo(() => {
@@ -107,6 +109,7 @@ export function SupplyDemandGeoMap() {
         state_ut: row.state_ut,
         hypertension_pct: Number(row.hypertension_pct),
         households_surveyed: Number(row.households_surveyed),
+        pincode_count: Number(row.pincode_count),
         cardiac_facilities: Number(row.cardiac_facilities),
         total_facilities: Number(row.total_facilities),
         balance_ratio: balance,
@@ -129,6 +132,7 @@ export function SupplyDemandGeoMap() {
           return [
             `<strong>${row.district_name}</strong>, ${row.state_ut}`,
             `Households surveyed: ${row.households_surveyed.toLocaleString()}`,
+            `Postal areas: ${row.pincode_count.toLocaleString()} pincodes`,
             `Hypertension: ${row.hypertension_pct.toFixed(1)}%`,
             `Cardiac facilities: ${row.cardiac_facilities} (${row.total_facilities} total)`,
             `Balance: ${bal.toFixed(3)} (${relation})`,
@@ -172,14 +176,14 @@ export function SupplyDemandGeoMap() {
           coordinateSystem: 'geo',
           data: scatterData,
           symbolSize: (_val: number[], params: { data?: ScatterPoint }) => {
-            const pop = params.data?.households_surveyed ?? 0;
-            return populationSymbolSize(pop, popBounds.min, popBounds.max);
+            const scale = params.data?.pincode_count ?? 1;
+            return logSymbolSize(scale, sizeBounds.min, sizeBounds.max);
           },
           encode: { value: 2 },
         },
       ],
     };
-  }, [filteredRows, mapReady, popBounds]);
+  }, [filteredRows, mapReady, sizeBounds]);
 
   if (loading || !mapReady) {
     return (
@@ -224,8 +228,8 @@ export function SupplyDemandGeoMap() {
         </div>
         <p className="text-xs text-muted-foreground">
           Showing {filteredRows.length} of {allRows.length} districts. Confidence blends NFHS
-          survey sample size (60%) with matched facility coverage (40%). Dot size = households
-          surveyed (population proxy).
+          survey sample size (60%) with matched facility coverage (40%). Dot size = district
+          scale by pincode count (log scale; NFHS household samples are nearly uniform).
         </p>
       </div>
 
@@ -239,7 +243,7 @@ export function SupplyDemandGeoMap() {
 
       <p className="text-xs text-muted-foreground text-center">
         Color: green = supply &gt; demand, red = supply &lt; demand. Size: larger dot = more
-        households surveyed (log scale).
+        postal pincodes in the district (log scale).
       </p>
     </div>
   );
