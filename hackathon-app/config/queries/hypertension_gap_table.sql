@@ -1,6 +1,8 @@
 -- Top 25 districts for in-app table (full dataset: hypertension_gap_by_district.sql).
--- Confidence score matches geographic map logic:
+-- Includes demand vs supply scores for side-by-side visual comparison.
+-- confidence_score matches the geographic map logic:
 -- 60% NFHS household sample size + 40% total facility count strength.
+
 WITH state_map AS (
   SELECT * FROM VALUES
     ('DELHI', 'NCT OF DELHI'),
@@ -23,13 +25,19 @@ WITH state_map AS (
 ),
 
 pincode_one AS (
-  SELECT pincode, district, statename
+  SELECT
+    pincode,
+    district,
+    statename
   FROM (
     SELECT
       pincode,
       district,
       statename,
-      ROW_NUMBER() OVER (PARTITION BY pincode ORDER BY district) AS rn
+      ROW_NUMBER() OVER (
+        PARTITION BY pincode
+        ORDER BY district
+      ) AS rn
     FROM databricks_virtue_foundation_dataset_dais_2026.virtue_foundation_dataset.india_post_pincode_directory
   )
   WHERE rn = 1
@@ -52,15 +60,18 @@ district_supply AS (
     UPPER(TRIM(district)) AS district_key,
     COALESCE(sm.norm_state, UPPER(TRIM(statename))) AS state_key,
     COUNT(*) AS total_facilities,
-    SUM(CASE
-      WHEN LOWER(COALESCE(specialties, '')) LIKE '%cardiology%'
-        OR LOWER(COALESCE(specialties, '')) LIKE '%interventionalcardiology%'
-        OR LOWER(COALESCE(specialties, '')) LIKE '%cardiacsurgery%'
-        OR LOWER(COALESCE(specialties, '')) LIKE '%cardiothoracicsurgery%'
-        OR LOWER(COALESCE(specialties, '')) LIKE '%pediatriccardiology%'
-        OR LOWER(COALESCE(specialties, '')) LIKE '%vascularsurgery%'
-      THEN 1 ELSE 0
-    END) AS cardiac_facilities
+    SUM(
+      CASE
+        WHEN LOWER(COALESCE(specialties, '')) LIKE '%cardiology%'
+          OR LOWER(COALESCE(specialties, '')) LIKE '%interventionalcardiology%'
+          OR LOWER(COALESCE(specialties, '')) LIKE '%cardiacsurgery%'
+          OR LOWER(COALESCE(specialties, '')) LIKE '%cardiothoracicsurgery%'
+          OR LOWER(COALESCE(specialties, '')) LIKE '%pediatriccardiology%'
+          OR LOWER(COALESCE(specialties, '')) LIKE '%vascularsurgery%'
+        THEN 1
+        ELSE 0
+      END
+    ) AS cardiac_facilities
   FROM facility_district fd
   LEFT JOIN state_map sm
     ON UPPER(TRIM(fd.statename)) = sm.raw_state
@@ -113,14 +124,26 @@ final_scored AS (
     *,
     ROUND(demand_norm - COALESCE(supply_norm, 0), 4) AS gap_score,
 
+    -- Cardiac desert risk: demand weighted by lack of supply.
+    ROUND(demand_norm * (1 - COALESCE(supply_norm, 0)), 4) AS desert_risk_score,
+
     CASE
       WHEN cardiac_facilities = 0
-        AND hypertension_pct > (SELECT med FROM median_h) THEN 'no_supply'
-      WHEN demand_norm - COALESCE(supply_norm, 0) > 0.3 THEN 'high_gap'
-      WHEN COALESCE(supply_norm, 0) - demand_norm > 0.3 THEN 'low_demand_high_supply'
+        AND hypertension_pct > (SELECT med FROM median_h)
+        THEN 'no_supply'
+      WHEN demand_norm - COALESCE(supply_norm, 0) > 0.3
+        THEN 'high_gap'
+      WHEN COALESCE(supply_norm, 0) - demand_norm > 0.3
+        THEN 'low_demand_high_supply'
       ELSE 'balanced'
     END AS gap_flag,
 
+    -- For demand-vs-supply stacked / side-by-side bar visual
+    ROUND(demand_norm, 3) AS demand_score,
+    ROUND(COALESCE(supply_norm, 0), 3) AS supply_score,
+
+    -- Matches map confidence logic:
+    -- 60% relative NFHS sample size + 40% facility-count strength
     ROUND(
       0.6 * demand_sample_norm
       + 0.4 * CASE
@@ -143,8 +166,11 @@ SELECT
   total_facilities,
   cardiac_facilities,
   gap_score,
+  desert_risk_score,
   gap_flag,
+  demand_score,
+  supply_score,
   confidence_score
 FROM final_scored
-ORDER BY gap_score DESC
+ORDER BY desert_risk_score DESC
 LIMIT 25;

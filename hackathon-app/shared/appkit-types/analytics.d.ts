@@ -154,8 +154,14 @@ declare module "@databricks/appkit-ui/react" {
           cardiac_facilities: number;
           /** @sqlType DOUBLE */
           gap_score: number;
+          /** @sqlType DOUBLE */
+          desert_risk_score: number;
           /** @sqlType STRING */
           gap_flag: string;
+          /** @sqlType DOUBLE */
+          demand_score: number;
+          /** @sqlType DOUBLE */
+          supply_score: number;
           /** @sqlType DOUBLE */
           confidence_score: number;
         }>;
