@@ -98,6 +98,8 @@ declare module "@databricks/appkit-ui/react" {
           state_ut: string;
           /** @sqlType DOUBLE */
           hypertension_pct: number;
+          /** @sqlType DOUBLE */
+          households_surveyed: number;
           /** @sqlType BIGINT */
           cardiac_facilities: number;
           /** @sqlType BIGINT */
@@ -108,6 +110,8 @@ declare module "@databricks/appkit-ui/react" {
           supply_norm: number;
           /** @sqlType DOUBLE */
           balance_ratio: number;
+          /** @sqlType DOUBLE */
+          confidence_score: number;
           /** @sqlType DOUBLE */
           latitude: number;
           /** @sqlType DOUBLE */

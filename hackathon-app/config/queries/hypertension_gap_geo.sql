@@ -71,7 +71,8 @@ nfhs AS (
     TRIM(district_name) AS district_name,
     TRIM(state_ut) AS state_ut,
     COALESCE(sm.norm_state, UPPER(TRIM(state_ut))) AS state_key,
-    w15_plus_with_high_bp_sys_gte_140_mmhg_and_or_dia_gte_90_mm_pct AS hypertension_pct
+    w15_plus_with_high_bp_sys_gte_140_mmhg_and_or_dia_gte_90_mm_pct AS hypertension_pct,
+    households_surveyed
   FROM databricks_virtue_foundation_dataset_dais_2026.virtue_foundation_dataset.nfhs_5_district_health_indicators n
   LEFT JOIN state_map sm ON UPPER(TRIM(n.state_ut)) = sm.raw_state
 ),
@@ -81,6 +82,7 @@ joined AS (
     n.state_ut,
     n.state_key,
     n.hypertension_pct,
+    n.households_surveyed,
     COALESCE(s.total_facilities, 0) AS total_facilities,
     COALESCE(s.cardiac_facilities, 0) AS cardiac_facilities
   FROM nfhs n
@@ -92,7 +94,8 @@ scored AS (
   SELECT
     *,
     hypertension_pct / 100.0 AS demand_norm,
-    cardiac_facilities / NULLIF(MAX(cardiac_facilities) OVER (), 0) AS supply_norm
+    cardiac_facilities / NULLIF(MAX(cardiac_facilities) OVER (), 0) AS supply_norm,
+    households_surveyed / NULLIF(MAX(households_surveyed) OVER (), 0) AS demand_sample_norm
   FROM joined
 ),
 balanced AS (
@@ -101,22 +104,35 @@ balanced AS (
     s.state_ut,
     s.state_key,
     s.hypertension_pct,
+    s.households_surveyed,
     s.cardiac_facilities,
     s.total_facilities,
     s.demand_norm,
     s.supply_norm,
-    ROUND(s.supply_norm - s.demand_norm, 4) AS balance_ratio
+    ROUND(s.supply_norm - s.demand_norm, 4) AS balance_ratio,
+    ROUND(
+      0.6 * s.demand_sample_norm
+      + 0.4 * CASE
+          WHEN s.total_facilities >= 10 THEN 1.0
+          WHEN s.total_facilities >= 3 THEN 0.75
+          WHEN s.total_facilities > 0 THEN 0.5
+          ELSE 0.15
+        END,
+      3
+    ) AS confidence_score
   FROM scored s
 )
 SELECT
   b.district_name,
   b.state_ut,
   b.hypertension_pct,
+  b.households_surveyed,
   b.cardiac_facilities,
   b.total_facilities,
   b.demand_norm,
   b.supply_norm,
   b.balance_ratio,
+  b.confidence_score,
   g.latitude,
   g.longitude
 FROM balanced b
