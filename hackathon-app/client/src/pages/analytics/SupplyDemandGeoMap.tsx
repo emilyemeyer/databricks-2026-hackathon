@@ -131,12 +131,12 @@ export function SupplyDemandGeoMap() {
           const relation = bal >= 0 ? 'Supply > demand' : 'Supply < demand';
           return [
             `<strong>${row.district_name}</strong>, ${row.state_ut}`,
-            `Households surveyed: ${row.households_surveyed.toLocaleString()}`,
+            `NFHS Households Surveyed: ${row.households_surveyed.toLocaleString()}`,
             `Postal areas: ${row.pincode_count.toLocaleString()} pincodes`,
             `Hypertension: ${row.hypertension_pct.toFixed(1)}%`,
-            `Cardiac facilities: ${row.cardiac_facilities} (${row.total_facilities} total)`,
-            `Balance: ${bal.toFixed(3)} (${relation})`,
-            `Confidence: ${confidenceLabel(row.confidence_score)} (${row.confidence_score.toFixed(2)})`,
+            `Cardiac-Capable Facilities: ${row.cardiac_facilities} (${row.total_facilities} Total Matched Facilities)`,
+            `Supply-Demand Balance: ${bal.toFixed(3)} (${relation})`,
+            `Data Confidence: ${confidenceLabel(row.confidence_score)} (${row.confidence_score.toFixed(2)})`,
           ].join('<br/>');
         },
       },

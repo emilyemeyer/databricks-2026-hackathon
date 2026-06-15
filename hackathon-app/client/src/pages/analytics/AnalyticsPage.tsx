@@ -16,6 +16,12 @@ import {
 } from '@databricks/appkit-ui/react';
 import { SupplyDemandGeoMap } from './SupplyDemandGeoMap';
 
+function confidenceLabel(score: number): string {
+  if (score >= 0.75) return 'High';
+  if (score >= 0.5) return 'Medium';
+  return 'Low';
+}
+
 function GapFlagBadge({ flag }: { flag: string }) {
   const styles: Record<string, string> = {
     no_supply: 'bg-destructive/15 text-destructive',
@@ -112,9 +118,10 @@ function HypertensionGapSection() {
                   <TableHead>District</TableHead>
                   <TableHead>State</TableHead>
                   <TableHead className="text-right">Hypertension %</TableHead>
-                  <TableHead className="text-right">Cardiac facilities</TableHead>
-                  <TableHead className="text-right">Gap score</TableHead>
-                  <TableHead>Flag</TableHead>
+                  <TableHead className="text-right">Cardiac-Capable Facilities</TableHead>
+                  <TableHead className="text-right">Demand-Supply Gap</TableHead>
+                  <TableHead className="text-right">Data Confidence</TableHead>
+                  <TableHead>Gap Category</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -128,6 +135,14 @@ function HypertensionGapSection() {
                     <TableCell className="text-right">{row.cardiac_facilities}</TableCell>
                     <TableCell className="text-right">
                       {Number(row.gap_score).toFixed(3)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <span className="font-medium">
+                        {confidenceLabel(Number(row.confidence_score))}
+                      </span>
+                      <span className="text-muted-foreground ml-1">
+                        ({Number(row.confidence_score).toFixed(2)})
+                      </span>
                     </TableCell>
                     <TableCell>
                       <GapFlagBadge flag={String(row.gap_flag)} />
