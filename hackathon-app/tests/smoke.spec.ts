@@ -7,7 +7,6 @@ const APP_CONFIG = {
   name: 'hackathon-app',
   plugins: [
     'analytics',
-    'serving',
   ],
   customPages: ['scenario', 'data-quality'],
 } as const;
@@ -21,8 +20,8 @@ interface PluginPage {
 const PLUGIN_PAGES: Record<string, PluginPage> = {
   analytics: {
     navLabel: 'Analytics',
-    path: '/analytics',
-    expectedTexts: ['All categories', 'Demand vs. Supply', 'Specialty category'],
+    path: '/',
+    expectedTexts: ['Analytics', 'All categories', 'Demand vs. Supply', 'Specialty category'],
   },
   scenario: {
     navLabel: 'Scenario',
@@ -33,11 +32,6 @@ const PLUGIN_PAGES: Record<string, PluginPage> = {
     navLabel: 'Data Quality',
     path: '/data-quality',
     expectedTexts: ['Data Quality', 'Actionable gaps', 'Specialty mappings'],
-  },
-  serving: {
-    navLabel: 'Serving',
-    path: '/serving',
-    expectedTexts: ['Model Serving', 'Chat with a Databricks Model Serving endpoint'],
   },
 };
 
@@ -55,16 +49,17 @@ let consoleErrors: string[] = [];
 let pageErrors: string[] = [];
 let failedRequests: string[] = [];
 
-test('smoke test - app loads and displays home page', async ({ page }) => {
+test('smoke test - app loads and displays analytics page', async ({ page }) => {
   await page.goto('/');
 
   await expect(page.getByRole('heading', { name: 'Care Compass', level: 1 })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Care Compass', level: 2 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Analytics', level: 2 })).toBeVisible();
+  await expect(page.getByText('All categories')).toBeVisible();
 
-  await expect(page.getByRole('link', { name: 'Home' })).toBeVisible();
   for (const [, plugin] of enabledPages) {
     await expect(page.getByRole('link', { name: plugin.navLabel })).toBeVisible();
   }
+  await expect(page.getByRole('link', { name: 'Serving' })).toHaveCount(0);
 });
 
 for (const [name, plugin] of enabledPages) {
