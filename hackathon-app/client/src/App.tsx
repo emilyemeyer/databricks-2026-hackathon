@@ -15,9 +15,7 @@ import {
 import { Menu } from 'lucide-react';
 import { AnalyticsPage } from './pages/analytics/AnalyticsPage';
 import { ScenarioPage } from './pages/scenario/ScenarioPage';
-import { LakebasePage } from './pages/lakebase/LakebasePage';
 import { DataQualityPage } from './pages/data-quality/DataQualityPage';
-import { GeniePage } from './pages/genie/GeniePage';
 import { ServingPage } from './pages/serving/ServingPage';
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
@@ -50,12 +48,6 @@ function NavLinks({ className, linkClass, onClick }: { className?: string; linkC
       </NavLink>
       <NavLink to="/data-quality" className={linkClass} onClick={onClick}>
         Data Quality
-      </NavLink>
-      <NavLink to="/lakebase" className={linkClass} onClick={onClick}>
-        Lakebase
-      </NavLink>
-      <NavLink to="/genie" className={linkClass} onClick={onClick}>
-        Genie
       </NavLink>
       <NavLink to="/serving" className={linkClass} onClick={onClick}>
         Serving
@@ -112,8 +104,8 @@ const router = createBrowserRouter([
       { path: '/scenario', element: <ScenarioPage /> },
       { path: '/mappings', element: <Navigate to="/data-quality" replace /> },
       { path: '/data-quality', element: <DataQualityPage /> },
-      { path: '/lakebase', element: <LakebasePage /> },
-      { path: '/genie', element: <GeniePage /> },
+      { path: '/lakebase', element: <Navigate to="/scenario" replace /> },
+      { path: '/genie', element: <Navigate to="/" replace /> },
       { path: '/serving', element: <ServingPage /> },
     ],
   },
@@ -134,8 +126,8 @@ function HomePage() {
           Virtue Foundation Healthcare Explorer
         </h2>
         <p className="text-lg text-muted-foreground max-w-2xl">
-          Explore Indian healthcare facilities, ask natural-language questions with Genie,
-          persist notes in Lakebase, and chat with Claude via Model Serving.
+          Explore Indian healthcare facilities, run scenario analysis, review data quality,
+          and chat with Claude via Model Serving.
         </p>
       </div>
 
@@ -162,22 +154,11 @@ function HomePage() {
         </Card>
         <Card className="shadow-sm border-border/60">
           <CardHeader>
-            <CardTitle>Genie</CardTitle>
+            <CardTitle>Data Quality</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">
-              Ask questions about facilities, health indicators, and pincode coverage in plain English.
-            </p>
-          </CardContent>
-        </Card>
-        <Card className="shadow-sm border-border/60">
-          <CardHeader>
-            <CardTitle>Lakebase</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Persist scenario plans in managed Postgres — list, duplicate, and delete saved
-              multi-facility scenarios.
+              Review DQ metrics, actionable gaps, and specialty mappings for the curated dataset.
             </p>
           </CardContent>
         </Card>

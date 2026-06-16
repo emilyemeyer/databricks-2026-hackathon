@@ -22,6 +22,8 @@ import {
   desertRiskTierStyles,
   normalizeRiskScore,
 } from './desertRisk';
+import { CompareMetricCard } from './scenarioCompare';
+import { DEFAULT_ANALYTICS_SPECIALTY } from './analyticsConstants';
 
 function confidenceLabel(score: number): string {
   if (score >= 0.75) return 'High';
@@ -108,8 +110,8 @@ function RiskCategoryBadge({
 type GapTableRow = {
   district_name: string;
   state_ut: string;
-  hypertension_pct: number;
-  cardiac_facilities: number;
+  demand_pct: number;
+  category_facilities: number;
   gap_score: number;
   gap_flag: string;
   demand_score: number;
@@ -121,17 +123,29 @@ function GapDistrictTable({
   title,
   description,
   rows,
+  baselineRows,
   loading,
   rankColumn,
   riskRange,
+  compareMode = false,
 }: {
   title: string;
   description: string;
   rows: GapTableRow[] | undefined;
+  baselineRows?: GapTableRow[];
   loading: boolean;
   rankColumn: 'gap' | 'desert';
   riskRange: { min: number; max: number };
+  compareMode?: boolean;
 }) {
+  const baselineByKey = useMemo(() => {
+    const map = new Map<string, GapTableRow>();
+    for (const row of baselineRows ?? []) {
+      map.set(`${row.district_name}-${row.state_ut}`, row);
+    }
+    return map;
+  }, [baselineRows]);
+
   const headClass = (col: 'gap' | 'desert') =>
     `text-right${rankColumn === col ? ' text-foreground font-semibold' : ''}`;
   return (
@@ -148,8 +162,9 @@ function GapDistrictTable({
               <TableRow>
                 <TableHead>District</TableHead>
                 <TableHead>State</TableHead>
-                <TableHead className="text-right">Hypertension %</TableHead>
-                <TableHead className="text-right">Cardiac-Capable Facilities</TableHead>
+                <TableHead className="text-right">Demand %</TableHead>
+                <TableHead className="text-right">Category Facilities</TableHead>
+                {compareMode && <TableHead className="text-right">Δ Facilities</TableHead>}
                 <TableHead>Demand vs Supply</TableHead>
                 <TableHead className="text-right">Data Confidence</TableHead>
                 <TableHead className={headClass('desert')}>Cardiac Desert Risk</TableHead>
@@ -157,14 +172,52 @@ function GapDistrictTable({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((row) => (
+              {rows.map((row) => {
+                const baseline = baselineByKey.get(`${row.district_name}-${row.state_ut}`);
+                const cardiacDelta =
+                  baseline != null
+                    ? Number(row.category_facilities) - Number(baseline.category_facilities)
+                    : 0;
+                const baselineRisk =
+                  baseline != null
+                    ? desertRiskScore(Number(baseline.demand_score), Number(baseline.supply_score))
+                    : null;
+                const scenarioRisk = desertRiskScore(
+                  Number(row.demand_score),
+                  Number(row.supply_score),
+                );
+                const riskDelta =
+                  baselineRisk != null ? scenarioRisk - baselineRisk : 0;
+
+                return (
                 <TableRow key={`${row.district_name}-${row.state_ut}`}>
                   <TableCell className="font-medium">{row.district_name}</TableCell>
                   <TableCell>{row.state_ut}</TableCell>
                   <TableCell className="text-right">
-                    {Number(row.hypertension_pct).toFixed(1)}%
+                    {Number(row.demand_pct).toFixed(1)}%
                   </TableCell>
-                  <TableCell className="text-right">{row.cardiac_facilities}</TableCell>
+                  <TableCell className="text-right">
+                    {compareMode && baseline != null ? (
+                      <span className="tabular-nums">
+                        {baseline.category_facilities} → {row.category_facilities}
+                      </span>
+                    ) : (
+                      row.category_facilities
+                    )}
+                  </TableCell>
+                  {compareMode && (
+                    <TableCell
+                      className={`text-right tabular-nums font-medium ${
+                        cardiacDelta > 0
+                          ? 'text-emerald-600'
+                          : cardiacDelta < 0
+                            ? 'text-destructive'
+                            : 'text-muted-foreground'
+                      }`}
+                    >
+                      {cardiacDelta > 0 ? `+${cardiacDelta}` : cardiacDelta === 0 ? '—' : cardiacDelta}
+                    </TableCell>
+                  )}
                   <TableCell>
                     <DemandSupplyBar
                       demand={Number(row.demand_score)}
@@ -185,17 +238,28 @@ function GapDistrictTable({
                       supply={Number(row.supply_score)}
                       riskRange={riskRange}
                     />
+                    {compareMode && riskDelta !== 0 && (
+                      <div
+                        className={`text-xs tabular-nums ${
+                          riskDelta < 0 ? 'text-emerald-600' : 'text-destructive'
+                        }`}
+                      >
+                        {riskDelta > 0 ? '+' : ''}
+                        {riskDelta.toFixed(3)}
+                      </div>
+                    )}
                   </TableCell>
                   <TableCell>
                     <RiskCategoryBadge
                       demand={Number(row.demand_score)}
                       supply={Number(row.supply_score)}
-                      cardiacFacilities={Number(row.cardiac_facilities)}
+                      cardiacFacilities={Number(row.category_facilities)}
                       riskRange={riskRange}
                     />
                   </TableCell>
                 </TableRow>
-              ))}
+                );
+              })}
             </TableBody>
           </Table>
         )}
@@ -207,6 +271,7 @@ function GapDistrictTable({
 export type HypertensionGapSectionProps = {
   /** Raw JSON array of scenario facilities; pass `[]` for baseline analytics. */
   facilitiesJson?: string;
+  specialtyCategory?: string;
   /** When false, queries are not run and placeholder content is shown. */
   enabled?: boolean;
   /** Adjust copy for scenario analysis context. */
@@ -216,22 +281,43 @@ export type HypertensionGapSectionProps = {
 
 export function HypertensionGapSection({
   facilitiesJson = '[]',
+  specialtyCategory = DEFAULT_ANALYTICS_SPECIALTY,
   enabled = true,
   scenarioMode = false,
   placeholder,
 }: HypertensionGapSectionProps) {
   const queryParams = useMemo(
-    () => ({ facilities_json: sql.string(facilitiesJson) }),
-    [facilitiesJson],
+    () => ({
+      facilities_json: sql.string(facilitiesJson),
+      specialty_category: sql.string(specialtyCategory),
+    }),
+    [facilitiesJson, specialtyCategory],
+  );
+
+  const baselineParams = useMemo(
+    () => ({
+      facilities_json: sql.string('[]'),
+      specialty_category: sql.string(specialtyCategory),
+    }),
+    [specialtyCategory],
   );
 
   const queryOptions = useMemo(() => ({ autoStart: enabled }), [enabled]);
+  const baselineQueryOptions = useMemo(
+    () => ({ autoStart: enabled && scenarioMode }),
+    [enabled, scenarioMode],
+  );
 
   const { data: summary, loading: summaryLoading, error: summaryError } = useAnalyticsQuery(
     'hypertension_gap_summary',
     queryParams,
     queryOptions,
   );
+  const {
+    data: baselineSummary,
+    loading: baselineSummaryLoading,
+  } = useAnalyticsQuery('hypertension_gap_summary', baselineParams, baselineQueryOptions);
+
   const { data: quality, loading: qualityLoading } = useAnalyticsQuery(
     'hypertension_gap_data_quality',
     undefined,
@@ -242,39 +328,88 @@ export function HypertensionGapSection({
     queryParams,
     queryOptions,
   );
-  const { data: geoRows } = useAnalyticsQuery('hypertension_gap_geo', queryParams, queryOptions);
+  const {
+    data: baselineTableRows,
+    loading: baselineTableLoading,
+  } = useAnalyticsQuery('hypertension_gap_table', baselineParams, baselineQueryOptions);
 
-  const riskRange = useMemo(
-    () => computeRiskRange((geoRows ?? []) as Array<{ demand_norm: number; supply_norm: number }>),
-    [geoRows],
+  const { data: geoRows, loading: geoQueryLoading } = useAnalyticsQuery(
+    'hypertension_gap_geo',
+    queryParams,
+    queryOptions,
   );
+  const {
+    data: baselineGeoRows,
+    loading: baselineGeoQueryLoading,
+  } = useAnalyticsQuery('hypertension_gap_geo', baselineParams, baselineQueryOptions);
 
-  const geoStats = useMemo(() => {
-    const rows = (geoRows ?? []) as Array<{
+  const computeGeoStats = (
+    rows: Array<{
       district_name: string;
       state_ut: string;
-      cardiac_facilities: number;
+      category_facilities: number;
       demand_norm: number;
       supply_norm: number;
-    }>;
-    if (rows.length === 0) {
+    }> | undefined,
+  ) => {
+    if (!rows || rows.length === 0) {
       return { totalCardiac: null as number | null, highest: null as null | { label: string; score: number } };
     }
     let totalCardiac = 0;
     let highest: { label: string; score: number } | null = null;
     for (const row of rows) {
-      totalCardiac += Number(row.cardiac_facilities);
+      totalCardiac += Number(row.category_facilities);
       const score = desertRiskScore(Number(row.demand_norm), Number(row.supply_norm));
       if (!highest || score > highest.score) {
         highest = { label: `${row.district_name}, ${row.state_ut}`, score };
       }
     }
     return { totalCardiac, highest };
-  }, [geoRows]);
+  };
 
-  const geoLoading = enabled && !geoRows;
+  const riskRange = useMemo(
+    () =>
+      computeRiskRange(
+        ((scenarioMode ? baselineGeoRows : geoRows) ?? []) as Array<{
+          demand_norm: number;
+          supply_norm: number;
+        }>,
+      ),
+    [baselineGeoRows, geoRows, scenarioMode],
+  );
+
+  const geoStats = useMemo(
+    () =>
+      computeGeoStats(
+        (geoRows ?? []) as Array<{
+          district_name: string;
+          state_ut: string;
+          category_facilities: number;
+          demand_norm: number;
+          supply_norm: number;
+        }>,
+      ),
+    [geoRows],
+  );
+
+  const baselineGeoStats = useMemo(
+    () =>
+      computeGeoStats(
+        (baselineGeoRows ?? []) as Array<{
+          district_name: string;
+          state_ut: string;
+          category_facilities: number;
+          demand_norm: number;
+          supply_norm: number;
+        }>,
+      ),
+    [baselineGeoRows],
+  );
+
+  const geoLoading = enabled && (geoQueryLoading || (scenarioMode && baselineGeoQueryLoading));
 
   const summaryRow = summary?.[0];
+  const baselineSummaryRow = baselineSummary?.[0];
   const qualityRow = quality?.[0];
 
   if (!enabled) {
@@ -305,14 +440,148 @@ export function HypertensionGapSection({
           {scenarioMode && (
             <>
               {' '}
-              Proposed scenario facilities are included in supply counts where capability matches
-              cardiac care (cardio, cardiac, heart, or cardiology).
+              Results compare baseline (current supply) with your scenario (baseline plus proposed
+              facilities). Cardiac supply increases when capability matches cardio, cardiac, heart,
+              or cardiology.
             </>
           )}
         </p>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+        {scenarioMode ? (
+          <>
+            <CompareMetricCard
+              title="Total Cardiac-Capable Facilities"
+              loading={geoLoading}
+              baseline={
+                baselineGeoStats.totalCardiac != null
+                  ? baselineGeoStats.totalCardiac.toLocaleString()
+                  : '—'
+              }
+              scenario={
+                geoStats.totalCardiac != null ? geoStats.totalCardiac.toLocaleString() : '—'
+              }
+              delta={
+                baselineGeoStats.totalCardiac != null && geoStats.totalCardiac != null
+                  ? geoStats.totalCardiac - baselineGeoStats.totalCardiac
+                  : null
+              }
+            />
+            <CompareMetricCard
+              title="Zero Cardiac Supply Districts"
+              loading={summaryLoading || baselineSummaryLoading}
+              baseline={baselineSummaryRow?.districts_with_zero_category_supply ?? '—'}
+              scenario={summaryRow?.districts_with_zero_category_supply ?? '—'}
+              delta={
+                baselineSummaryRow?.districts_with_zero_category_supply != null &&
+                summaryRow?.districts_with_zero_category_supply != null
+                  ? Number(summaryRow.districts_with_zero_category_supply) -
+                    Number(baselineSummaryRow.districts_with_zero_category_supply)
+                  : null
+              }
+              lowerIsBetter
+            />
+            <CompareMetricCard
+              title="High Desert Risk Districts"
+              loading={summaryLoading || baselineSummaryLoading}
+              baseline={baselineSummaryRow?.districts_high_gap_or_no_supply ?? '—'}
+              scenario={summaryRow?.districts_high_gap_or_no_supply ?? '—'}
+              delta={
+                baselineSummaryRow?.districts_high_gap_or_no_supply != null &&
+                summaryRow?.districts_high_gap_or_no_supply != null
+                  ? Number(summaryRow.districts_high_gap_or_no_supply) -
+                    Number(baselineSummaryRow.districts_high_gap_or_no_supply)
+                  : null
+              }
+              lowerIsBetter
+              subtitle={
+                summaryRow?.districts_analyzed != null &&
+                summaryRow?.districts_high_gap_or_no_supply != null &&
+                Number(summaryRow.districts_analyzed) > 0
+                  ? `${(
+                      (Number(summaryRow.districts_high_gap_or_no_supply) /
+                        Number(summaryRow.districts_analyzed)) *
+                      100
+                    ).toFixed(0)}% of districts (scenario)`
+                  : undefined
+              }
+            />
+            <Card className="shadow-sm border-border/60 lg:col-span-2">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">Highest Risk District</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {geoLoading ? (
+                  <Skeleton className="h-8 w-32" />
+                ) : (
+                  <div className="grid sm:grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">
+                        Baseline
+                      </p>
+                      <p className="font-semibold text-destructive leading-tight">
+                        {baselineGeoStats.highest?.label ?? '—'}
+                      </p>
+                      {baselineGeoStats.highest && (
+                        <p className="text-xs text-muted-foreground mt-1 tabular-nums">
+                          Risk{' '}
+                          {normalizeRiskScore(
+                            baselineGeoStats.highest.score,
+                            riskRange.min,
+                            riskRange.max,
+                          ).toFixed(2)}
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">
+                        Scenario
+                      </p>
+                      <p className="font-semibold text-destructive leading-tight">
+                        {geoStats.highest?.label ?? '—'}
+                      </p>
+                      {geoStats.highest && (
+                        <p className="text-xs text-muted-foreground mt-1 tabular-nums">
+                          Risk{' '}
+                          {normalizeRiskScore(
+                            geoStats.highest.score,
+                            riskRange.min,
+                            riskRange.max,
+                          ).toFixed(2)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+            <CompareMetricCard
+              title="Median Hypertension %"
+              loading={summaryLoading || baselineSummaryLoading}
+              baseline={
+                baselineSummaryRow?.median_demand_pct != null
+                  ? `${Number(baselineSummaryRow.median_demand_pct).toFixed(1)}%`
+                  : '—'
+              }
+              scenario={
+                summaryRow?.median_demand_pct != null
+                  ? `${Number(summaryRow.median_demand_pct).toFixed(1)}%`
+                  : '—'
+              }
+              delta={
+                baselineSummaryRow?.median_demand_pct != null &&
+                summaryRow?.median_demand_pct != null
+                  ? Number(summaryRow.median_demand_pct) -
+                    Number(baselineSummaryRow.median_demand_pct)
+                  : null
+              }
+              deltaSuffix="%"
+              lowerIsBetter
+            />
+          </>
+        ) : (
+          <>
         <Card className="shadow-sm border-border/60">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Highest Risk District</CardTitle>
@@ -357,8 +626,8 @@ export function HypertensionGapSection({
           <CardContent>
             {summaryLoading ? <Skeleton className="h-8 w-16" /> : (
               <div className="text-2xl font-bold text-primary">
-                {summaryRow?.median_hypertension_pct != null
-                  ? `${Number(summaryRow.median_hypertension_pct).toFixed(1)}%`
+                {summaryRow?.median_demand_pct != null
+                  ? `${Number(summaryRow.median_demand_pct).toFixed(1)}%`
                   : '—'}
               </div>
             )}
@@ -371,7 +640,7 @@ export function HypertensionGapSection({
           <CardContent>
             {summaryLoading ? <Skeleton className="h-8 w-16" /> : (
               <div className="text-2xl font-bold">
-                {summaryRow?.districts_with_zero_cardiac_supply ?? '—'}
+                {summaryRow?.districts_with_zero_category_supply ?? '—'}
               </div>
             )}
           </CardContent>
@@ -416,6 +685,8 @@ export function HypertensionGapSection({
             )}
           </CardContent>
         </Card>
+          </>
+        )}
       </div>
 
       {(summaryError || tableError) && (
@@ -426,20 +697,33 @@ export function HypertensionGapSection({
 
       <Card className="shadow-sm border-border/60">
         <CardHeader>
-          <CardTitle>Cardiac Desert Risk Heat Map</CardTitle>
+          <CardTitle>
+            {scenarioMode ? 'Cardiac Desert Risk — Baseline vs Scenario' : 'Cardiac Desert Risk Heat Map'}
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <SupplyDemandHeatMap facilitiesJson={facilitiesJson} enabled={enabled} />
+          <SupplyDemandHeatMap
+            facilitiesJson={facilitiesJson}
+            specialtyCategory={specialtyCategory}
+            enabled={enabled}
+            compareMode={scenarioMode}
+          />
         </CardContent>
       </Card>
 
       <GapDistrictTable
         title="Top 25 Cardiac Desert Districts"
-        description="Ranked by cardiac desert risk (hypertension demand × lack of cardiac supply). Highlights where burden is high and cardiac care is scarce."
+        description={
+          scenarioMode
+            ? 'Scenario rankings with baseline → scenario cardiac counts and risk deltas. Negative risk Δ means improved supply vs. demand balance.'
+            : 'Ranked by cardiac desert risk (hypertension demand × lack of cardiac supply). Highlights where burden is high and cardiac care is scarce.'
+        }
         rows={tableRows as GapTableRow[] | undefined}
-        loading={tableLoading}
+        baselineRows={scenarioMode ? (baselineTableRows as GapTableRow[] | undefined) : undefined}
+        loading={tableLoading || (scenarioMode && baselineTableLoading)}
         rankColumn="desert"
         riskRange={riskRange}
+        compareMode={scenarioMode}
       />
 
       <Card className="shadow-sm border-border/60 bg-muted/30">

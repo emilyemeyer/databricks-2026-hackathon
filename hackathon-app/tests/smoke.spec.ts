@@ -7,8 +7,6 @@ const APP_CONFIG = {
   name: 'hackathon-app',
   plugins: [
     'analytics',
-    'lakebase',
-    'genie',
     'serving',
   ],
   customPages: ['scenario', 'data-quality'],
@@ -35,16 +33,6 @@ const PLUGIN_PAGES: Record<string, PluginPage> = {
     navLabel: 'Data Quality',
     path: '/data-quality',
     expectedTexts: ['Data Quality', 'Actionable gaps', 'Specialty mappings'],
-  },
-  lakebase: {
-    navLabel: 'Lakebase',
-    path: '/lakebase',
-    expectedTexts: ['Lakebase Scenario Library', 'Saved scenarios'],
-  },
-  genie: {
-    navLabel: 'Genie',
-    path: '/genie',
-    expectedTexts: ['Ask questions about your data using Databricks AI/BI Genie'],
   },
   serving: {
     navLabel: 'Serving',

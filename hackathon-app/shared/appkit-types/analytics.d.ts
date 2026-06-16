@@ -198,6 +198,8 @@ declare module "@databricks/appkit-ui/react" {
         name: "hypertension_gap_geo";
         parameters: {
           /** STRING - use sql.string() */
+          specialty_category: SQLStringMarker;
+          /** STRING - use sql.string() */
           facilities_json: SQLStringMarker;
         };
         result: Array<{
@@ -206,11 +208,11 @@ declare module "@databricks/appkit-ui/react" {
           /** @sqlType STRING */
           state_ut: string;
           /** @sqlType DOUBLE */
-          hypertension_pct: number;
+          demand_pct: number;
           /** @sqlType DOUBLE */
           households_surveyed: number;
           /** @sqlType BIGINT */
-          cardiac_facilities: number;
+          category_facilities: number;
           /** @sqlType BIGINT */
           total_facilities: number;
           /** @sqlType DOUBLE */
@@ -233,15 +235,17 @@ declare module "@databricks/appkit-ui/react" {
         name: "hypertension_gap_summary";
         parameters: {
           /** STRING - use sql.string() */
+          specialty_category: SQLStringMarker;
+          /** STRING - use sql.string() */
           facilities_json: SQLStringMarker;
         };
         result: Array<{
           /** @sqlType BIGINT */
           districts_analyzed: number;
           /** @sqlType BIGINT */
-          districts_with_zero_cardiac_supply: number;
+          districts_with_zero_category_supply: number;
           /** @sqlType DOUBLE */
-          median_hypertension_pct: number;
+          median_demand_pct: number;
           /** @sqlType BIGINT */
           districts_high_gap_or_no_supply: number;
           /** @sqlType STRING */
@@ -252,6 +256,8 @@ declare module "@databricks/appkit-ui/react" {
         name: "hypertension_gap_table";
         parameters: {
           /** STRING - use sql.string() */
+          specialty_category: SQLStringMarker;
+          /** STRING - use sql.string() */
           facilities_json: SQLStringMarker;
         };
         result: Array<{
@@ -260,13 +266,13 @@ declare module "@databricks/appkit-ui/react" {
           /** @sqlType STRING */
           state_ut: string;
           /** @sqlType DOUBLE */
-          hypertension_pct: number;
+          demand_pct: number;
           /** @sqlType DOUBLE */
           households_surveyed: number;
           /** @sqlType BIGINT */
           total_facilities: number;
           /** @sqlType BIGINT */
-          cardiac_facilities: number;
+          category_facilities: number;
           /** @sqlType DOUBLE */
           gap_score: number;
           /** @sqlType DOUBLE */
