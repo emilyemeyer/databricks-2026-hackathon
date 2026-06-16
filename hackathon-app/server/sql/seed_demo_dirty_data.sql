@@ -1,4 +1,6 @@
 -- Idempotent demo dirty rows for the Data Quality "Actionable gaps" UI.
+-- Demo facility id aaaaaaaa-bbbb-4ccc-8ddd-000000000001 is the only facility that
+-- intentionally lacks facility_specialty rows (see correct_dq_demo_data.sql).
 
 MERGE INTO dais_2026.hackathon.facility AS target
 USING (

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   useAnalyticsQuery,
   Badge,
@@ -787,18 +787,22 @@ export function DataQualityPage() {
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const refreshAll = () => setRefreshKey((key) => key + 1);
 
-  const manualRefresh = async () => {
+  const manualRefresh = useCallback(async () => {
     setRefreshing(true);
     setRefreshError(null);
     try {
       await refreshDqSnapshot();
-      refreshAll();
+      setRefreshKey((key) => key + 1);
     } catch (err) {
       setRefreshError(err instanceof Error ? err.message : 'Refresh failed');
     } finally {
       setRefreshing(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    void manualRefresh();
+  }, [manualRefresh]);
 
   return (
     <div className="space-y-6 w-full max-w-7xl mx-auto">

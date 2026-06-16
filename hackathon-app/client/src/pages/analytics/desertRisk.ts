@@ -48,3 +48,27 @@ export function computeRiskRange(
   if (risks.length === 0) return { min: 0, max: 1 };
   return { min: Math.min(...risks), max: Math.max(...risks) };
 }
+
+/** Beds required per affected-household-equivalent — must match SQL (demand_pct/100 × households × this). */
+export const BEDS_PER_BURDEN_UNIT = 5;
+
+/** @deprecated Use BEDS_PER_BURDEN_UNIT; kept for docs referencing the old flat formula. */
+export const BEDS_PER_DEMAND_PCT = 50;
+
+export function demandBurden(demandPct: number, householdsSurveyed: number): number {
+  return (demandPct / 100) * Math.max(householdsSurveyed, 1);
+}
+
+export function expectedCategoryBeds(demandPct: number, householdsSurveyed: number): number {
+  return Math.max(demandBurden(demandPct, householdsSurveyed) * BEDS_PER_BURDEN_UNIT, 1);
+}
+
+export function categorySupplyBeds(row: {
+  category_bed_capacity?: number | string;
+  category_facilities?: number | string;
+}): number {
+  if (row.category_bed_capacity != null) {
+    return Number(row.category_bed_capacity);
+  }
+  return Number(row.category_facilities ?? 0);
+}

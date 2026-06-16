@@ -1,6 +1,7 @@
 -- District centroids + category supply/demand balance for geographic map.
 -- @param facilities_json STRING
 -- @param specialty_category STRING
+-- @param _run STRING
 WITH state_map AS (
   SELECT * FROM VALUES
     ('DELHI', 'NCT OF DELHI'),
@@ -31,13 +32,17 @@ scenario_facilities AS (
   SELECT
     UPPER(TRIM(f.district_name)) AS district_key,
     UPPER(TRIM(f.state_ut)) AS state_key,
+    GREATEST(COALESCE(f.capacity, 0), 0) AS capacity,
     CASE
+      WHEN TRIM(COALESCE(f.capability, '')) = '' THEN 0
+      WHEN :specialty_category = 'ALL' THEN 1
       WHEN EXISTS (
         SELECT 1
         FROM category_specialties cs
         WHERE LOWER(TRIM(f.capability)) LIKE CONCAT('%', LOWER(cs.specialty), '%')
       ) THEN 1
-      ELSE 0
+      WHEN LOWER(TRIM(f.capability)) LIKE CONCAT('%', LOWER(:specialty_category), '%') THEN 1
+      ELSE 1
     END AS is_category_match
   FROM (
     SELECT explode(
@@ -53,7 +58,8 @@ scenario_by_district AS (
     district_key,
     state_key,
     COUNT(*) AS added_facilities,
-    SUM(is_category_match) AS added_category_facilities
+    SUM(is_category_match) AS added_category_facilities,
+    SUM(CASE WHEN is_category_match > 0 THEN GREATEST(capacity, 1) ELSE 0 END) AS added_category_beds
   FROM scenario_facilities
   GROUP BY district_key, state_key
 ),
@@ -115,16 +121,16 @@ district_demand AS (
     AND hi.indicator_value IS NOT NULL
   GROUP BY 1, 2, 3, 4
 ),
-district_supply_base AS (
+facility_category AS (
   SELECT
     UPPER(TRIM(f.district_name)) AS district_key,
     UPPER(TRIM(f.state_ut)) AS state_key,
-    COUNT(DISTINCT f.facility_id) AS total_facilities,
-    COUNT(DISTINCT CASE WHEN m.specialties IS NOT NULL THEN f.facility_id END) AS category_facilities
+    f.facility_id,
+    MAX(COALESCE(NULLIF(f.bed_count, 0), 25)) AS bed_units
   FROM dais_2026.hackathon.facility f
-  LEFT JOIN dais_2026.hackathon.facility_specialty fs
+  INNER JOIN dais_2026.hackathon.facility_specialty fs
     ON f.facility_id = fs.facility_id
-  LEFT JOIN dais_2026.hackathon.specialty_category_mapping m
+  INNER JOIN dais_2026.hackathon.specialty_category_mapping m
     ON fs.specialty = m.specialties
    AND (
      :specialty_category = 'ALL'
@@ -134,14 +140,47 @@ district_supply_base AS (
     AND TRIM(f.district_name) != ''
     AND f.state_ut IS NOT NULL
     AND TRIM(f.state_ut) != ''
+  GROUP BY 1, 2, 3
+),
+all_facilities_by_district AS (
+  SELECT
+    UPPER(TRIM(f.district_name)) AS district_key,
+    UPPER(TRIM(f.state_ut)) AS state_key,
+    COUNT(DISTINCT f.facility_id) AS total_facilities
+  FROM dais_2026.hackathon.facility f
+  WHERE f.district_name IS NOT NULL
+    AND TRIM(f.district_name) != ''
+    AND f.state_ut IS NOT NULL
+    AND TRIM(f.state_ut) != ''
   GROUP BY 1, 2
+),
+category_supply_by_district AS (
+  SELECT
+    district_key,
+    state_key,
+    COUNT(DISTINCT facility_id) AS category_facilities,
+    SUM(bed_units) AS category_bed_capacity
+  FROM facility_category
+  GROUP BY 1, 2
+),
+district_supply_base AS (
+  SELECT
+    COALESCE(a.district_key, c.district_key) AS district_key,
+    COALESCE(a.state_key, c.state_key) AS state_key,
+    COALESCE(a.total_facilities, 0) AS total_facilities,
+    COALESCE(c.category_facilities, 0) AS category_facilities,
+    COALESCE(c.category_bed_capacity, 0) AS category_bed_capacity
+  FROM all_facilities_by_district a
+  FULL OUTER JOIN category_supply_by_district c
+    ON a.district_key = c.district_key AND a.state_key = c.state_key
 ),
 district_supply AS (
   SELECT
     COALESCE(b.district_key, s.district_key) AS district_key,
     COALESCE(b.state_key, s.state_key) AS state_key,
     COALESCE(b.total_facilities, 0) + COALESCE(s.added_facilities, 0) AS total_facilities,
-    COALESCE(b.category_facilities, 0) + COALESCE(s.added_category_facilities, 0) AS category_facilities
+    COALESCE(b.category_facilities, 0) + COALESCE(s.added_category_facilities, 0) AS category_facilities,
+    COALESCE(b.category_bed_capacity, 0) + COALESCE(s.added_category_beds, 0) AS category_bed_capacity
   FROM district_supply_base b
   FULL OUTER JOIN scenario_by_district s
     ON b.district_key = s.district_key AND b.state_key = s.state_key
@@ -154,7 +193,8 @@ joined AS (
     d.demand_pct,
     COALESCE(m.households_surveyed, 0) AS households_surveyed,
     COALESCE(s.total_facilities, 0) AS total_facilities,
-    COALESCE(s.category_facilities, 0) AS category_facilities
+    COALESCE(s.category_facilities, 0) AS category_facilities,
+    COALESCE(s.category_bed_capacity, 0) AS category_bed_capacity
   FROM district_demand d
   LEFT JOIN district_meta m
     ON d.district_key = m.district_key
@@ -166,8 +206,26 @@ joined AS (
 scored AS (
   SELECT
     *,
-    demand_pct / 100.0 AS demand_norm,
-    category_facilities / NULLIF(MAX(category_facilities) OVER (), 0) AS supply_norm,
+    (demand_pct / 100.0) * GREATEST(households_surveyed, 1.0) AS demand_burden,
+    ((demand_pct / 100.0) * GREATEST(households_surveyed, 1.0))
+      / NULLIF(
+          MAX((demand_pct / 100.0) * GREATEST(households_surveyed, 1.0)) OVER (),
+          0
+        ) AS demand_norm,
+    GREATEST(
+      ((demand_pct / 100.0) * GREATEST(households_surveyed, 1.0)) * 5.0,
+      1.0
+    ) AS expected_beds,
+    LEAST(
+      1.0,
+      COALESCE(category_bed_capacity, 0) / NULLIF(
+        GREATEST(
+          ((demand_pct / 100.0) * GREATEST(households_surveyed, 1.0)) * 5.0,
+          1.0
+        ),
+        0
+      )
+    ) AS supply_norm,
     households_surveyed / NULLIF(MAX(households_surveyed) OVER (), 0) AS demand_sample_norm
   FROM joined
 ),
@@ -179,6 +237,8 @@ balanced AS (
     s.demand_pct,
     s.households_surveyed,
     s.category_facilities,
+    s.category_bed_capacity,
+    s.expected_beds,
     s.total_facilities,
     s.demand_norm,
     s.supply_norm,
@@ -201,6 +261,8 @@ SELECT
   b.demand_pct,
   b.households_surveyed,
   b.category_facilities,
+  b.category_bed_capacity,
+  b.expected_beds,
   b.total_facilities,
   b.demand_norm,
   b.supply_norm,
@@ -214,3 +276,4 @@ INNER JOIN district_geo g
   ON UPPER(TRIM(b.district_name)) = g.district_key
  AND b.state_key = g.state_key
 WHERE g.latitude IS NOT NULL AND g.longitude IS NOT NULL
+  AND COALESCE(:_run, '') = COALESCE(:_run, '')

@@ -608,6 +608,34 @@ for statement in [part.strip() for part in unmap_sql.split(";") if part.strip()]
 # COMMAND ----------
 
 # MAGIC %md
+# MAGIC ## Map unmapped facility specialties to supply categories
+
+# COMMAND ----------
+
+unmap_facility_sql_path = f"/Workspace{bundle_root}/sql/seed_unmapped_facility_specialty_categories.sql"
+with open(unmap_facility_sql_path, encoding="utf-8") as unmap_facility_file:
+    unmap_facility_sql = unmap_facility_file.read().replace("${TARGET}", TARGET)
+
+for statement in [part.strip() for part in unmap_facility_sql.split(";") if part.strip()]:
+    spark.sql(statement)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Correct demo DQ data (one intentional facility_without_specialty gap)
+
+# COMMAND ----------
+
+correct_dq_sql_path = f"/Workspace{bundle_root}/sql/correct_dq_demo_data.sql"
+with open(correct_dq_sql_path, encoding="utf-8") as correct_dq_file:
+    correct_dq_sql = correct_dq_file.read().replace("${TARGET}", TARGET)
+
+for statement in [part.strip() for part in correct_dq_sql.split(";") if part.strip()]:
+    spark.sql(statement)
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC ## Sync facility_specialty from specialties_raw (backfill parseable values)
 
 # COMMAND ----------
@@ -641,10 +669,23 @@ for statement in [part.strip() for part in demo_dirty_sql.split(";") if part.str
 # COMMAND ----------
 
 dq_sql_path = f"/Workspace{bundle_root}/sql/build_dq_tables.sql"
-with open(dq_sql_path, encoding="utf-8") as dq_file:
-    dq_sql = dq_file.read().replace("${TARGET}", TARGET)
+merge_gap_sql_path = f"/Workspace{bundle_root}/sql/merge_dq_gap_from_staging.sql"
 
-for statement in [part.strip() for part in dq_sql.split(";") if part.strip()]:
+def _load_sql_statements(path: str) -> list[str]:
+    with open(path, encoding="utf-8") as sql_file:
+        sql_text = sql_file.read().replace("${TARGET}", TARGET)
+    return [part.strip() for part in sql_text.split(";") if part.strip()]
+
+# Recover gaps when a prior run built dq_gap_staging but did not merge it.
+if spark.catalog.tableExists(f"{TARGET}.dq_gap_staging"):
+    print(f"Recovering orphaned {TARGET}.dq_gap_staging")
+    for statement in _load_sql_statements(merge_gap_sql_path):
+        spark.sql(statement)
+
+for statement in _load_sql_statements(dq_sql_path):
+    spark.sql(statement)
+
+for statement in _load_sql_statements(merge_gap_sql_path):
     spark.sql(statement)
 
 dq_summary = spark.sql(f"""

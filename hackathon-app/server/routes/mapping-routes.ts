@@ -304,7 +304,9 @@ export async function setupMappingRoutes(appkit: AppKitWithServer) {
         res.status(204).send();
       } catch (err) {
         console.error('Failed to refresh dq snapshot:', err);
-        res.status(500).json({ error: 'Failed to refresh data quality metrics' });
+        res.status(500).json({
+          error: err instanceof Error ? err.message : 'Failed to refresh data quality metrics',
+        });
       }
     });
 
