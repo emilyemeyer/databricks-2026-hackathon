@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
+import { Link } from 'react-router';
 import ReactECharts from 'echarts-for-react';
 import * as echarts from 'echarts';
+import { sql } from '@databricks/appkit-ui/js';
 import { Check, ChevronsUpDown } from 'lucide-react';
 import {
   Button,
@@ -26,15 +28,17 @@ import {
   normalizeRiskScore,
 } from './desertRisk';
 import { districtRegionKey, parseRegionKeyDisplay, prepareDistrictGeoJson, type GeoJsonCollection } from './districtMatching';
+import { DEFAULT_ANALYTICS_SPECIALTY, isAllSpecialtyCategories, specialtyCategoryLabel } from './analyticsConstants';
+import type { DistrictSelection } from '../../lib/scenario-navigation';
 
 const INDIA_GEOJSON_PATH = '/geo/india-districts.geojson';
 
 type GeoRow = {
   district_name: string;
   state_ut: string;
-  hypertension_pct: number | string;
+  demand_pct: number | string;
   households_surveyed: number | string;
-  cardiac_facilities: number | string;
+  category_facilities: number | string;
   total_facilities: number | string;
   demand_norm: number | string;
   supply_norm: number | string;
@@ -50,8 +54,8 @@ type DistrictMapPoint = {
   value: number;
   district_name: string;
   state_ut: string;
-  hypertension_pct: number;
-  cardiac_facilities: number;
+  demand_pct: number;
+  category_facilities: number;
   total_facilities: number;
   demand_norm: number;
   supply_norm: number;
@@ -66,19 +70,7 @@ type ConfidenceLevel = 'high' | 'medium' | 'low';
 const ALL_CONFIDENCE_LEVELS: ConfidenceLevel[] = ['high', 'medium', 'low'];
 
 const TOP_N_DISTRICTS = 25;
-
-const CATEGORY_LABELS: Record<string, string> = {
-  primary_care: 'Primary Care',
-  cardiology: 'Cardiology',
-  oncology: 'Oncology',
-  endocrinology: 'Endocrinology',
-  nutrition: 'Nutrition',
-  neurology: 'Neurology',
-  nephrology: 'Nephrology',
-  pulmonology: 'Pulmonology',
-  obgyn: "Women's Health (OB/GYN)",
-  pediatrics: 'Pediatrics',
-};
+const TOP_RANKED_NEEDS = 10;
 
 type DemandRankRow = {
   district_name: string;
@@ -100,8 +92,8 @@ type DistrictTooltipInfo = {
   ranked_needs: DistrictDemandCategory[];
   desert_risk_score?: number;
   desert_risk_norm?: number;
-  hypertension_pct?: number;
-  cardiac_facilities?: number;
+  demand_pct?: number;
+  category_facilities?: number;
   total_facilities?: number;
   demand_norm?: number;
   supply_norm?: number;
@@ -119,10 +111,7 @@ function districtKey(districtName: string, stateUt: string): string {
 }
 
 function formatCategoryLabel(category: string): string {
-  return CATEGORY_LABELS[category] ?? category
-    .split('_')
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
+  return category;
 }
 
 function formatRankedDemandNeeds(categories: DistrictDemandCategory[]): string {
@@ -131,6 +120,7 @@ function formatRankedDemandNeeds(categories: DistrictDemandCategory[]): string {
   }
 
   const rows = categories
+    .slice(0, TOP_RANKED_NEEDS)
     .map((item) => {
       const label = formatCategoryLabel(item.category);
       return [
@@ -162,9 +152,9 @@ function formatRankedDemandNeeds(categories: DistrictDemandCategory[]): string {
 
 function formatDistrictTooltip(info: DistrictTooltipInfo, riskRange: { min: number; max: number }): string {
   const rankedNeeds = formatRankedDemandNeeds(info.ranked_needs);
-  const hasCardiacMetrics =
+  const hasCategoryMetrics =
     info.desert_risk_score !== undefined &&
-    info.hypertension_pct !== undefined &&
+    info.demand_pct !== undefined &&
     info.confidence_score !== undefined;
 
   const sections = [
@@ -173,12 +163,12 @@ function formatDistrictTooltip(info: DistrictTooltipInfo, riskRange: { min: numb
     rankedNeeds,
   ];
 
-  if (hasCardiacMetrics) {
+  if (hasCategoryMetrics) {
     const tier = desertRiskTierFromScore(info.desert_risk_score!, riskRange.min, riskRange.max);
     sections.push(
       '<div style="margin-top:8px;padding-top:8px;border-top:1px solid #e5e7eb;color:#374151;font-size:11px;line-height:1.6">',
       `Desert risk: ${info.desert_risk_score!.toFixed(3)} (${desertRiskTierLabel(tier)}) · intensity ${info.desert_risk_norm!.toFixed(2)}`,
-      `<br/>Hypertension: ${info.hypertension_pct!.toFixed(1)}% · Cardiac facilities: ${info.cardiac_facilities} / ${info.total_facilities}`,
+      `<br/>Demand: ${info.demand_pct!.toFixed(1)}% · Category facilities: ${info.category_facilities} / ${info.total_facilities}`,
       `<br/>Demand ${info.demand_norm!.toFixed(2)} · Supply ${info.supply_norm!.toFixed(2)} · Confidence: ${confidenceLabel(info.confidence_score!)} (${info.confidence_score!.toFixed(2)})`,
       '</div>',
     );
@@ -237,8 +227,8 @@ function buildTooltipByRegion(
     const cardiacMetrics = {
       desert_risk_score: risk,
       desert_risk_norm: normalizeRiskScore(risk, riskRange.min, riskRange.max),
-      hypertension_pct: Number(row.hypertension_pct),
-      cardiac_facilities: Number(row.cardiac_facilities),
+      demand_pct: Number(row.demand_pct),
+      category_facilities: Number(row.category_facilities),
       total_facilities: Number(row.total_facilities),
       demand_norm: demandNorm,
       supply_norm: supplyNorm,
@@ -260,6 +250,39 @@ function buildTooltipByRegion(
   return tooltips;
 }
 
+function formatCompareDistrictTooltip(
+  baseline: GeoRow | undefined,
+  scenario: GeoRow,
+  riskRange: { min: number; max: number },
+  rankedNeeds: DistrictDemandCategory[],
+): string {
+  const scenarioDemand = Number(scenario.demand_norm);
+  const scenarioSupply = Number(scenario.supply_norm);
+  const scenarioRisk = desertRiskScore(scenarioDemand, scenarioSupply);
+  const scenarioNorm = normalizeRiskScore(scenarioRisk, riskRange.min, riskRange.max);
+
+  const baselineDemand = baseline ? Number(baseline.demand_norm) : scenarioDemand;
+  const baselineSupply = baseline ? Number(baseline.supply_norm) : scenarioSupply;
+  const baselineRisk = desertRiskScore(baselineDemand, baselineSupply);
+  const baselineNorm = normalizeRiskScore(baselineRisk, riskRange.min, riskRange.max);
+  const riskDelta = scenarioRisk - baselineRisk;
+  const cardiacDelta = baseline
+    ? Number(scenario.category_facilities) - Number(baseline.category_facilities)
+    : 0;
+
+  const sections = [
+    `<div style="font-size:14px;font-weight:700;margin-bottom:2px">${scenario.district_name}</div>`,
+    `<div style="color:#6b7280;margin-bottom:6px">${scenario.state_ut}</div>`,
+    formatRankedDemandNeeds(rankedNeeds),
+    '<div style="margin-top:8px;padding-top:8px;border-top:1px solid #e5e7eb;font-size:11px;line-height:1.6">',
+    `<div><strong>Baseline</strong> · risk ${baselineNorm.toFixed(2)} · facilities ${baseline?.category_facilities ?? scenario.category_facilities}</div>`,
+    `<div><strong>Scenario</strong> · risk ${scenarioNorm.toFixed(2)} · facilities ${scenario.category_facilities}</div>`,
+    `<div style="margin-top:4px;font-weight:600;color:${riskDelta < 0 ? '#059669' : riskDelta > 0 ? '#dc2626' : '#6b7280'}">Δ risk ${riskDelta > 0 ? '+' : ''}${riskDelta.toFixed(3)} · Δ facilities ${cardiacDelta > 0 ? '+' : ''}${cardiacDelta}</div>`,
+    '</div>',
+  ];
+  return sections.join('');
+}
+
 function confidenceLabel(score: number): string {
   if (score >= 0.75) return 'High';
   if (score >= 0.5) return 'Medium';
@@ -272,16 +295,79 @@ function confidenceBucket(score: number): ConfidenceLevel {
   return 'low';
 }
 
+/** Symmetric visualMap span so the largest |Δ| in the scenario saturates the palette. */
+function computeDeltaColorExtent(deltas: number[]): { min: number; max: number } {
+  const magnitudes = deltas.map(Math.abs).filter((d) => d > 1e-9);
+  if (magnitudes.length === 0) {
+    return { min: -0.01, max: 0.01 };
+  }
+  const peak = Math.max(...magnitudes);
+  // Scale to ~85% of peak so the biggest change hits full green/red, not pale tints.
+  const span = Math.max(peak * 0.85, 0.001);
+  return { min: -span, max: span };
+}
 
-export function SupplyDemandHeatMap() {
-  const { data, loading, error } = useAnalyticsQuery('hypertension_gap_geo');
+const DELTA_MAP_COLORS = ['#006837', '#41ab5d', '#d9d9d9', '#f03b20', '#990000'];
+const RISK_MAP_COLORS = ['#1a9850', '#91cf60', '#d9ef8b', '#fee08b', '#fc8d59', '#d73027'];
+const NO_DATA_MAP_COLOR = '#e8e4dc';
+
+
+type MapViewMode = 'delta' | 'baseline' | 'scenario';
+
+type SupplyDemandHeatMapProps = {
+  facilitiesJson?: string;
+  specialtyCategory?: string;
+  enabled?: boolean;
+  /** When true, fetch baseline and show baseline / scenario / change views. */
+  compareMode?: boolean;
+  /** Analytics only: click a district to open scenario builder. */
+  onDistrictClick?: (district: DistrictSelection) => void;
+};
+
+export function SupplyDemandHeatMap({
+  facilitiesJson = '[]',
+  specialtyCategory = DEFAULT_ANALYTICS_SPECIALTY,
+  enabled = true,
+  compareMode = false,
+  onDistrictClick,
+}: SupplyDemandHeatMapProps) {
+  const categoryLabel = specialtyCategoryLabel(specialtyCategory);
+  const isAllCategories = isAllSpecialtyCategories(specialtyCategory);
+
+  const baselineParams = useMemo(
+    () => ({
+      facilities_json: sql.string('[]'),
+      specialty_category: sql.string(specialtyCategory),
+    }),
+    [specialtyCategory],
+  );
+  const queryParams = useMemo(
+    () => ({
+      facilities_json: sql.string(facilitiesJson),
+      specialty_category: sql.string(specialtyCategory),
+    }),
+    [facilitiesJson, specialtyCategory],
+  );
+  const { data, loading, error } = useAnalyticsQuery('hypertension_gap_geo', queryParams, {
+    autoStart: enabled,
+  });
+  const {
+    data: baselineData,
+    loading: baselineLoading,
+    error: baselineError,
+  } = useAnalyticsQuery('hypertension_gap_geo', baselineParams, {
+    autoStart: enabled && compareMode,
+  });
   const {
     data: demandRankedData,
     loading: demandRankedLoading,
     error: demandRankedError,
-  } = useAnalyticsQuery('district_demand_ranked');
+  } = useAnalyticsQuery('district_demand_ranked', undefined, {
+    autoStart: enabled,
+  });
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
+  const [mapView, setMapView] = useState<MapViewMode>(compareMode ? 'delta' : 'scenario');
   const [selectedLevels, setSelectedLevels] = useState<ConfidenceLevel[]>(ALL_CONFIDENCE_LEVELS);
   const [selectedDistricts, setSelectedDistricts] = useState<string[]>([]);
   const [districtPickerOpen, setDistrictPickerOpen] = useState(false);
@@ -311,17 +397,69 @@ export function SupplyDemandHeatMap() {
     };
   }, []);
 
-  const allRows = (data ?? []) as GeoRow[];
+  useEffect(() => {
+    if (compareMode) {
+      setMapView('delta');
+    }
+  }, [compareMode, facilitiesJson]);
+
+  const scenarioRows = (data ?? []) as GeoRow[];
+  const baselineRows = (baselineData ?? []) as GeoRow[];
+  const allRows = compareMode && mapView === 'baseline' ? baselineRows : scenarioRows;
   const demandByDistrict = useMemo(
     () => buildDemandByDistrict((demandRankedData ?? []) as DemandRankRow[]),
     [demandRankedData],
   );
 
-  const riskRange = useMemo(() => computeRiskRange(allRows), [allRows]);
+  const riskRange = useMemo(
+    () => computeRiskRange(compareMode ? baselineRows : allRows),
+    [allRows, baselineRows, compareMode],
+  );
+
+  const baselineByKey = useMemo(() => {
+    const map = new Map<string, GeoRow>();
+    for (const row of baselineRows) {
+      map.set(districtKey(row.district_name, row.state_ut), row);
+    }
+    return map;
+  }, [baselineRows]);
+
+  const scenarioByKey = useMemo(() => {
+    const map = new Map<string, GeoRow>();
+    for (const row of scenarioRows) {
+      map.set(districtKey(row.district_name, row.state_ut), row);
+    }
+    return map;
+  }, [scenarioRows]);
+
+  const districtByRegionKey = useMemo(() => {
+    const map = new Map<string, DistrictSelection>();
+    for (const row of allRows) {
+      map.set(districtKey(row.district_name, row.state_ut), {
+        district_name: row.district_name,
+        state_ut: row.state_ut,
+      });
+    }
+    return map;
+  }, [allRows]);
+
+  const handleMapClick = useCallback(
+    (params: { name?: string }) => {
+      if (!onDistrictClick || !params.name) return;
+      const district = districtByRegionKey.get(params.name);
+      if (district) onDistrictClick(district);
+    },
+    [districtByRegionKey, onDistrictClick],
+  );
+
+  const chartEvents = useMemo(
+    () => (onDistrictClick ? { click: handleMapClick } : undefined),
+    [handleMapClick, onDistrictClick],
+  );
 
   const filteredRows = useMemo(
     () =>
-      allRows.filter((row) => {
+      (mapView === 'delta' && compareMode ? scenarioRows : allRows).filter((row) => {
         if (!selectedLevels.includes(confidenceBucket(Number(row.confidence_score)))) {
           return false;
         }
@@ -330,7 +468,7 @@ export function SupplyDemandHeatMap() {
         }
         return true;
       }),
-    [allRows, selectedLevels, selectedDistricts],
+    [allRows, compareMode, mapView, scenarioRows, selectedDistricts, selectedLevels],
   );
 
   const tooltipByRegion = useMemo(
@@ -357,20 +495,40 @@ export function SupplyDemandHeatMap() {
   const option = useMemo(() => {
     if (!mapReady || filteredRows.length === 0) return null;
 
+    const isDeltaView = compareMode && mapView === 'delta';
+
     const mapData: DistrictMapPoint[] = filteredRows.map((row) => {
+      const key = districtKey(row.district_name, row.state_ut);
       const demandNorm = Number(row.demand_norm);
       const supplyNorm = Number(row.supply_norm);
       const risk = desertRiskScore(demandNorm, supplyNorm);
       const desertRiskNorm = normalizeRiskScore(risk, riskRange.min, riskRange.max);
-      const key = districtKey(row.district_name, row.state_ut);
+
+      let value = desertRiskNorm;
+      if (isDeltaView) {
+        const baseline = baselineByKey.get(key);
+        if (baseline) {
+          const baselineRisk = desertRiskScore(
+            Number(baseline.demand_norm),
+            Number(baseline.supply_norm),
+          );
+          const baselineNorm = normalizeRiskScore(baselineRisk, riskRange.min, riskRange.max);
+          value = desertRiskNorm - baselineNorm;
+        } else {
+          value = 0;
+        }
+      } else if (compareMode && mapView === 'baseline') {
+        value = desertRiskNorm;
+      }
+
       const demandInfo = demandByDistrict.get(key);
       return {
         name: key,
-        value: desertRiskNorm,
+        value,
         district_name: row.district_name,
         state_ut: row.state_ut,
-        hypertension_pct: Number(row.hypertension_pct),
-        cardiac_facilities: Number(row.cardiac_facilities),
+        demand_pct: Number(row.demand_pct),
+        category_facilities: Number(row.category_facilities),
         total_facilities: Number(row.total_facilities),
         demand_norm: demandNorm,
         supply_norm: supplyNorm,
@@ -381,6 +539,48 @@ export function SupplyDemandHeatMap() {
       };
     });
 
+    const deltaExtent = isDeltaView
+      ? computeDeltaColorExtent(mapData.map((point) => point.value))
+      : null;
+
+    const visualMap = isDeltaView
+      ? {
+          show: true,
+          type: 'continuous' as const,
+          min: deltaExtent!.min,
+          max: deltaExtent!.max,
+          precision: 3,
+          calculable: true,
+          orient: 'vertical' as const,
+          right: 16,
+          top: 'center',
+          text: ['Worse', 'Improved'],
+          inRange: {
+            color: DELTA_MAP_COLORS,
+          },
+          outOfRange: {
+            color: NO_DATA_MAP_COLOR,
+          },
+        }
+      : {
+          show: true,
+          type: 'continuous' as const,
+          min: 0,
+          max: 1,
+          precision: 2,
+          calculable: true,
+          orient: 'vertical' as const,
+          right: 16,
+          top: 'center',
+          text: ['High Risk', 'Low Risk'],
+          inRange: {
+            color: RISK_MAP_COLORS,
+          },
+          outOfRange: {
+            color: NO_DATA_MAP_COLOR,
+          },
+        };
+
     return {
       tooltip: {
         trigger: 'item',
@@ -390,6 +590,21 @@ export function SupplyDemandHeatMap() {
         formatter: (params: { name?: string }) => {
           const regionKey = params.name;
           if (!regionKey) return '';
+
+          if (compareMode) {
+            const scenario = scenarioByKey.get(regionKey) ?? filteredRows.find(
+              (r) => districtKey(r.district_name, r.state_ut) === regionKey,
+            );
+            if (scenario) {
+              const demandInfo = demandByDistrict.get(regionKey);
+              return formatCompareDistrictTooltip(
+                baselineByKey.get(regionKey),
+                scenario,
+                riskRange,
+                demandInfo?.categories ?? [],
+              );
+            }
+          }
 
           const info = tooltipByRegion.get(regionKey);
           if (info) {
@@ -403,33 +618,19 @@ export function SupplyDemandHeatMap() {
           return `<strong>${district}</strong>, ${state}<br/><span style="color:#9ca3af">No demand data available for this district</span>`;
         },
       },
-      visualMap: {
-        show: true,
-        type: 'continuous',
-        min: 0,
-        max: 1,
-        precision: 2,
-        calculable: true,
-        orient: 'vertical',
-        right: 16,
-        top: 'center',
-        text: ['High Risk', 'Low Risk'],
-        inRange: {
-          color: ['#1a9850', '#91cf60', '#d9ef8b', '#fee08b', '#fc8d59', '#d73027'],
-        },
-      },
+      visualMap,
       series: [
         {
-          name: 'Desert risk by district',
+          name: isDeltaView ? 'Risk change' : 'Desert risk by district',
           type: 'map',
           map: 'india_districts',
           roam: true,
+          cursor: onDistrictClick ? 'pointer' : 'default',
           scaleLimit: { min: 1, max: 8 },
           layoutCenter: ['50%', '50%'],
           layoutSize: '85%',
           label: { show: false },
           itemStyle: {
-            areaColor: '#f5f3ef',
             borderColor: '#c4bdb4',
             borderWidth: 0.6,
           },
@@ -445,9 +646,20 @@ export function SupplyDemandHeatMap() {
         },
       ],
     };
-  }, [demandByDistrict, filteredRows, mapReady, riskRange, tooltipByRegion]);
+  }, [
+    baselineByKey,
+    compareMode,
+    demandByDistrict,
+    filteredRows,
+    mapReady,
+    mapView,
+    onDistrictClick,
+    riskRange,
+    scenarioByKey,
+    tooltipByRegion,
+  ]);
 
-  if (loading || demandRankedLoading || !mapReady) {
+  if (loading || demandRankedLoading || (compareMode && baselineLoading) || !mapReady) {
     return (
       <div className="flex h-[620px] items-center justify-center text-sm text-muted-foreground">
         {mapError ? `Map error: ${mapError}` : 'Loading heat map…'}
@@ -455,10 +667,10 @@ export function SupplyDemandHeatMap() {
     );
   }
 
-  if (error || demandRankedError) {
+  if (error || demandRankedError || baselineError) {
     return (
       <div className="text-destructive bg-destructive/10 p-3 rounded-md text-sm">
-        {error ?? demandRankedError}
+        {error ?? baselineError ?? demandRankedError}
       </div>
     );
   }
@@ -477,26 +689,59 @@ export function SupplyDemandHeatMap() {
   return (
     <div className="w-full space-y-4">
       <div className="rounded-lg border border-border/60 bg-muted/20 p-4 space-y-3">
+        {compareMode && (
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
+            <Label className="text-sm font-medium shrink-0 sm:w-36">Map view</Label>
+            <ToggleGroup
+              type="single"
+              variant="outline"
+              size="sm"
+              value={mapView}
+              onValueChange={(value) => {
+                if (value) setMapView(value as MapViewMode);
+              }}
+              className="flex-1 justify-start"
+            >
+              <ToggleGroupItem value="delta" aria-label="Risk change">
+                Change (Δ)
+              </ToggleGroupItem>
+              <ToggleGroupItem value="baseline" aria-label="Baseline risk">
+                Baseline
+              </ToggleGroupItem>
+              <ToggleGroupItem value="scenario" aria-label="Scenario risk">
+                Scenario
+              </ToggleGroupItem>
+            </ToggleGroup>
+          </div>
+        )}
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
           <Label className="text-sm font-medium shrink-0 sm:w-36">Data confidence</Label>
-          <ToggleGroup
-            type="multiple"
-            variant="outline"
-            size="sm"
-            value={selectedLevels}
-            onValueChange={(value) => setSelectedLevels(value as ConfidenceLevel[])}
-            className="flex-1 justify-start"
-          >
-            <ToggleGroupItem value="high" aria-label="High confidence">
-              High
-            </ToggleGroupItem>
-            <ToggleGroupItem value="medium" aria-label="Medium confidence">
-              Medium
-            </ToggleGroupItem>
-            <ToggleGroupItem value="low" aria-label="Low confidence">
-              Low
-            </ToggleGroupItem>
-          </ToggleGroup>
+          <div className="flex flex-1 flex-wrap items-center gap-3">
+            <ToggleGroup
+              type="multiple"
+              variant="outline"
+              size="sm"
+              value={selectedLevels}
+              onValueChange={(value) => setSelectedLevels(value as ConfidenceLevel[])}
+              className="justify-start"
+            >
+              <ToggleGroupItem value="high" aria-label="High confidence">
+                High
+              </ToggleGroupItem>
+              <ToggleGroupItem value="medium" aria-label="Medium confidence">
+                Medium
+              </ToggleGroupItem>
+              <ToggleGroupItem value="low" aria-label="Low confidence">
+                Low
+              </ToggleGroupItem>
+            </ToggleGroup>
+            <Link
+              to="/data-quality"
+              className="text-sm text-primary underline-offset-4 hover:underline"
+            >
+              Improve Data Quality
+            </Link>
+          </div>
         </div>
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
           <Label className="text-sm font-medium shrink-0 sm:w-36">Top 25 Districts</Label>
@@ -548,9 +793,26 @@ export function SupplyDemandHeatMap() {
           )}
         </div>
         <p className="text-xs text-muted-foreground">
-          Showing {filteredRows.length} of {allRows.length} districts. Each district is shaded by
-          relative cardiac desert risk (hypertension demand × lack of cardiac supply). Hover any
-          district to see all 10 ranked health needs from NFHS demand categories.
+          Showing {filteredRows.length} of {scenarioRows.length} districts.
+          {compareMode ? (
+            <>
+              {' '}
+              {mapView === 'delta'
+                ? 'Change view scales colors to the largest risk shift in this scenario (green = improved, red = worse, gray = no change).'
+                : mapView === 'baseline'
+                  ? `Baseline ${categoryLabel} desert risk before proposed facilities.`
+                  : `Scenario desert risk after proposed ${isAllCategories ? 'mapped' : categoryLabel} facilities are added to supply.`}
+              {' '}
+              Hover any district for baseline vs scenario facility counts and risk deltas.
+            </>
+          ) : (
+            <>
+              {' '}
+              Each district is shaded by relative {categoryLabel} desert risk (demand × lack of
+              supply). Hover any district to see ranked NFHS demand categories for that district.
+              {onDistrictClick && ' Click a district to model a new facility in Scenario.'}
+            </>
+          )}
         </p>
       </div>
 
@@ -559,12 +821,22 @@ export function SupplyDemandHeatMap() {
           No districts match the selected confidence levels — select a level above to see data.
         </div>
       ) : (
-        option && <ReactECharts option={option} style={{ height: 620, width: '100%' }} notMerge />
+        option && (
+          <ReactECharts
+            option={option}
+            style={{ height: 620, width: '100%' }}
+            notMerge
+            onEvents={chartEvents}
+          />
+        )
       )}
 
       <p className="text-xs text-muted-foreground text-center">
-        District color: red = high cardiac desert risk (high hypertension + low cardiac supply),
-        yellow = moderate, green = low risk. Gray districts have no data for the current filters.
+        {compareMode && mapView === 'delta'
+          ? 'Change view: saturated green/red scaled to the largest Δ in this scenario; gray = unchanged districts.'
+          : `District color: red = high ${categoryLabel} desert risk, yellow = moderate, green = low risk.${
+              onDistrictClick ? ' Click a district to open Scenario.' : ''
+            }`}
       </p>
     </div>
   );

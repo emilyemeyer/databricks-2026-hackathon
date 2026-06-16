@@ -1,5 +1,6 @@
--- District centroids + supply/demand balance for geographic map.
--- balance_ratio > 0 => supply exceeds demand (green); < 0 => demand exceeds supply (red).
+-- District centroids + category supply/demand balance for geographic map.
+-- @param facilities_json STRING
+-- @param specialty_category STRING
 WITH state_map AS (
   SELECT * FROM VALUES
     ('DELHI', 'NCT OF DELHI'),
@@ -19,6 +20,42 @@ WITH state_map AS (
     ('DADRA AND NAGAR HAVELI AND DAMAN AND DIU', 'DADRA & NAGAR HAVELI AND DAMAN & DIU'),
     ('DADRA & NAGAR HAVELI AND DAMAN & DIU', 'DADRA & NAGAR HAVELI AND DAMAN & DIU')
   AS t(raw_state, norm_state)
+),
+category_specialties AS (
+  SELECT DISTINCT TRIM(specialties) AS specialty
+  FROM dais_2026.hackathon.specialty_category_mapping
+  WHERE :specialty_category = 'ALL'
+     OR CAST(category AS STRING) = :specialty_category
+),
+scenario_facilities AS (
+  SELECT
+    UPPER(TRIM(f.district_name)) AS district_key,
+    UPPER(TRIM(f.state_ut)) AS state_key,
+    CASE
+      WHEN EXISTS (
+        SELECT 1
+        FROM category_specialties cs
+        WHERE LOWER(TRIM(f.capability)) LIKE CONCAT('%', LOWER(cs.specialty), '%')
+      ) THEN 1
+      ELSE 0
+    END AS is_category_match
+  FROM (
+    SELECT explode(
+      from_json(
+        :facilities_json,
+        'array<struct<district_name:string,state_ut:string,capability:string,capacity:int>>'
+      )
+    ) AS f
+  )
+),
+scenario_by_district AS (
+  SELECT
+    district_key,
+    state_key,
+    COUNT(*) AS added_facilities,
+    SUM(is_category_match) AS added_category_facilities
+  FROM scenario_facilities
+  GROUP BY district_key, state_key
 ),
 pincode_one AS (
   SELECT pincode, district, statename, latitude, longitude
@@ -42,60 +79,95 @@ district_geo AS (
     AND TRY_CAST(longitude AS DOUBLE) BETWEEN 68 AND 98
   GROUP BY 1, 2
 ),
-facility_district AS (
-  SELECT f.unique_id, f.specialties, p.district, p.statename
-  FROM databricks_virtue_foundation_dataset_dais_2026.virtue_foundation_dataset.facilities f
-  INNER JOIN pincode_one p
-    ON TRY_CAST(REGEXP_REPLACE(f.address_zipOrPostcode, '[^0-9]', '') AS BIGINT) = p.pincode
-  WHERE TRY_CAST(REGEXP_REPLACE(f.address_zipOrPostcode, '[^0-9]', '') AS BIGINT) IS NOT NULL
-),
-district_supply AS (
-  SELECT
-    UPPER(TRIM(district)) AS district_key,
-    COALESCE(sm.norm_state, UPPER(TRIM(statename))) AS state_key,
-    COUNT(*) AS total_facilities,
-    SUM(CASE
-      WHEN LOWER(COALESCE(specialties, '')) LIKE '%cardiology%'
-        OR LOWER(COALESCE(specialties, '')) LIKE '%interventionalcardiology%'
-        OR LOWER(COALESCE(specialties, '')) LIKE '%cardiacsurgery%'
-        OR LOWER(COALESCE(specialties, '')) LIKE '%cardiothoracicsurgery%'
-        OR LOWER(COALESCE(specialties, '')) LIKE '%pediatriccardiology%'
-        OR LOWER(COALESCE(specialties, '')) LIKE '%vascularsurgery%'
-      THEN 1 ELSE 0
-    END) AS cardiac_facilities
-  FROM facility_district fd
-  LEFT JOIN state_map sm ON UPPER(TRIM(fd.statename)) = sm.raw_state
-  GROUP BY 1, 2
-),
-nfhs AS (
+district_meta AS (
   SELECT
     TRIM(district_name) AS district_name,
     TRIM(state_ut) AS state_ut,
-    COALESCE(sm.norm_state, UPPER(TRIM(state_ut))) AS state_key,
-    w15_plus_with_high_bp_sys_gte_140_mmhg_and_or_dia_gte_90_mm_pct AS hypertension_pct,
-    households_surveyed
-  FROM databricks_virtue_foundation_dataset_dais_2026.virtue_foundation_dataset.nfhs_5_district_health_indicators n
-  LEFT JOIN state_map sm ON UPPER(TRIM(n.state_ut)) = sm.raw_state
+    UPPER(TRIM(district_name)) AS district_key,
+    UPPER(TRIM(state_ut)) AS state_key,
+    MAX(CASE WHEN indicator_key = 'households_surveyed' THEN indicator_value END) AS households_surveyed
+  FROM dais_2026.hackathon.health_indicator
+  GROUP BY 1, 2, 3, 4
+),
+district_demand AS (
+  SELECT
+    TRIM(hi.district_name) AS district_name,
+    TRIM(hi.state_ut) AS state_ut,
+    UPPER(TRIM(hi.district_name)) AS district_key,
+    UPPER(TRIM(hi.state_ut)) AS state_key,
+    ROUND(AVG(hi.indicator_value), 2) AS demand_pct
+  FROM dais_2026.hackathon.health_indicator hi
+  WHERE EXISTS (
+      SELECT 1
+      FROM dais_2026.hackathon.health_indicator_specialty his
+      WHERE his.indicator_key = hi.indicator_key
+        AND (
+          :specialty_category = 'ALL'
+          OR his.specialty_category = :specialty_category
+        )
+    )
+    AND NOT COALESCE(hi.is_suppressed, false)
+    AND hi.indicator_key NOT IN (
+      'households_surveyed',
+      'women_15_49_interviewed',
+      'men_15_54_interviewed'
+    )
+    AND hi.indicator_value IS NOT NULL
+  GROUP BY 1, 2, 3, 4
+),
+district_supply_base AS (
+  SELECT
+    UPPER(TRIM(f.district_name)) AS district_key,
+    UPPER(TRIM(f.state_ut)) AS state_key,
+    COUNT(DISTINCT f.facility_id) AS total_facilities,
+    COUNT(DISTINCT CASE WHEN m.specialties IS NOT NULL THEN f.facility_id END) AS category_facilities
+  FROM dais_2026.hackathon.facility f
+  LEFT JOIN dais_2026.hackathon.facility_specialty fs
+    ON f.facility_id = fs.facility_id
+  LEFT JOIN dais_2026.hackathon.specialty_category_mapping m
+    ON fs.specialty = m.specialties
+   AND (
+     :specialty_category = 'ALL'
+     OR CAST(m.category AS STRING) = :specialty_category
+   )
+  WHERE f.district_name IS NOT NULL
+    AND TRIM(f.district_name) != ''
+    AND f.state_ut IS NOT NULL
+    AND TRIM(f.state_ut) != ''
+  GROUP BY 1, 2
+),
+district_supply AS (
+  SELECT
+    COALESCE(b.district_key, s.district_key) AS district_key,
+    COALESCE(b.state_key, s.state_key) AS state_key,
+    COALESCE(b.total_facilities, 0) + COALESCE(s.added_facilities, 0) AS total_facilities,
+    COALESCE(b.category_facilities, 0) + COALESCE(s.added_category_facilities, 0) AS category_facilities
+  FROM district_supply_base b
+  FULL OUTER JOIN scenario_by_district s
+    ON b.district_key = s.district_key AND b.state_key = s.state_key
 ),
 joined AS (
   SELECT
-    n.district_name,
-    n.state_ut,
-    n.state_key,
-    n.hypertension_pct,
-    n.households_surveyed,
+    d.district_name,
+    d.state_ut,
+    d.state_key,
+    d.demand_pct,
+    COALESCE(m.households_surveyed, 0) AS households_surveyed,
     COALESCE(s.total_facilities, 0) AS total_facilities,
-    COALESCE(s.cardiac_facilities, 0) AS cardiac_facilities
-  FROM nfhs n
+    COALESCE(s.category_facilities, 0) AS category_facilities
+  FROM district_demand d
+  LEFT JOIN district_meta m
+    ON d.district_key = m.district_key
+   AND d.state_key = m.state_key
   LEFT JOIN district_supply s
-    ON UPPER(TRIM(n.district_name)) = s.district_key
-   AND n.state_key = s.state_key
+    ON d.district_key = s.district_key
+   AND d.state_key = s.state_key
 ),
 scored AS (
   SELECT
     *,
-    hypertension_pct / 100.0 AS demand_norm,
-    cardiac_facilities / NULLIF(MAX(cardiac_facilities) OVER (), 0) AS supply_norm,
+    demand_pct / 100.0 AS demand_norm,
+    category_facilities / NULLIF(MAX(category_facilities) OVER (), 0) AS supply_norm,
     households_surveyed / NULLIF(MAX(households_surveyed) OVER (), 0) AS demand_sample_norm
   FROM joined
 ),
@@ -104,9 +176,9 @@ balanced AS (
     s.district_name,
     s.state_ut,
     s.state_key,
-    s.hypertension_pct,
+    s.demand_pct,
     s.households_surveyed,
-    s.cardiac_facilities,
+    s.category_facilities,
     s.total_facilities,
     s.demand_norm,
     s.supply_norm,
@@ -126,9 +198,9 @@ balanced AS (
 SELECT
   b.district_name,
   b.state_ut,
-  b.hypertension_pct,
+  b.demand_pct,
   b.households_surveyed,
-  b.cardiac_facilities,
+  b.category_facilities,
   b.total_facilities,
   b.demand_norm,
   b.supply_norm,
