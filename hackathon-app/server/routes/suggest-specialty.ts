@@ -146,9 +146,11 @@ FROM (
     contextText,
   ].join('\n');
 
+  const endpoint =
+    process.env.DATABRICKS_SERVING_ENDPOINT_NAME ?? 'databricks-claude-opus-4-8';
   const rows = await runSql(`
 SELECT ai_query(
-  'databricks-claude-sonnet-4-6',
+  '${escapeSqlString(endpoint)}',
   '${escapeSqlString(prompt)}',
   failOnError => false
 ) AS ai_response

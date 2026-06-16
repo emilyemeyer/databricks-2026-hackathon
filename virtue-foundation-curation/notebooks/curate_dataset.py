@@ -622,6 +622,20 @@ for statement in [part.strip() for part in sync_fs_sql.split(";") if part.strip(
 # COMMAND ----------
 
 # MAGIC %md
+# MAGIC ## Demo dirty data (actionable DQ gaps)
+
+# COMMAND ----------
+
+demo_dirty_sql_path = f"/Workspace{bundle_root}/sql/seed_demo_dirty_data.sql"
+with open(demo_dirty_sql_path, encoding="utf-8") as demo_dirty_file:
+    demo_dirty_sql = demo_dirty_file.read().replace("${TARGET}", TARGET)
+
+for statement in [part.strip() for part in demo_dirty_sql.split(";") if part.strip()]:
+    spark.sql(statement)
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC ## Data quality metrics and actionable gaps
 
 # COMMAND ----------

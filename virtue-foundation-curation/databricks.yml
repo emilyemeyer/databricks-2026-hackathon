@@ -34,7 +34,7 @@ targets:
   default:
     default: true
     workspace:
-      host: https://adb-7405609899023285.5.azuredatabricks.net
+      host: https://dbc-13a5ebc6-7820.cloud.databricks.com
     variables:
       raw_catalog: databricks_virtue_foundation_dataset_dais_2026
       raw_schema: virtue_foundation_dataset

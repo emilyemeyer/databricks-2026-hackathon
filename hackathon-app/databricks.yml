@@ -53,13 +53,13 @@ targets:
   default:
     default: true
     workspace:
-      host: https://adb-7405609899023285.5.azuredatabricks.net
+      host: https://dbc-13a5ebc6-7820.cloud.databricks.com
 
     variables:
-      sql_warehouse_id: cd3ea746610d6fe8
-      genie_space_id: 01f1685782911cfdae011d028b61022d
-      genie_space_name: DAIS 2026 Virtue Foundation
+      sql_warehouse_id: d8c2d376825167df
+      genie_space_id: 01f169c6ab0f120ba71cd9527df59891
+      genie_space_name: Bakehouse Sales Starter Space
       postgres_branch: projects/hackathon-app/branches/production
       postgres_database: projects/hackathon-app/branches/production/databases/databricks-postgres
       postgres_project: projects/hackathon-app
-      serving_endpoint_name: databricks-claude-sonnet-4-6
+      serving_endpoint_name: databricks-claude-opus-4-8
