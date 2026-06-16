@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router';
-import { sql } from '@databricks/appkit-ui/js';
 import {
   useAnalyticsQuery,
   Button,
@@ -17,12 +16,6 @@ import {
   SelectTrigger,
   SelectValue,
   Skeleton,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
   Textarea,
   Badge,
 } from '@databricks/appkit-ui/react';
@@ -35,17 +28,12 @@ import {
   updateScenario,
 } from '../../lib/scenario-api';
 import type { ScenarioFacilityInput, ScenarioSummary } from '../../types/scenario';
+import { HypertensionGapSection } from '../analytics/HypertensionGapSection';
 
 type DraftFacility = ScenarioFacilityInput & { clientId: string };
 
 function newClientId(): string {
   return `facility-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function formatDelta(value: number, suffix = ''): string {
-  if (value === 0) return '—';
-  const sign = value > 0 ? '+' : '';
-  return `${sign}${value.toLocaleString()}${suffix}`;
 }
 
 export function ScenarioPage() {
@@ -147,20 +135,12 @@ export function ScenarioPage() {
     [facilities],
   );
 
-  const impactParams = useMemo(() => {
-    if (facilities.length === 0 || runId === 0) return undefined;
-    return {
-      facilities_json: sql.string(facilitiesToAnalyticsJson(facilityInputs)),
-    };
-  }, [facilityInputs, facilities.length, runId]);
+  const scenarioFacilitiesJson = useMemo(
+    () => facilitiesToAnalyticsJson(facilityInputs),
+    [facilityInputs],
+  );
 
-  const {
-    data: impactRows,
-    loading: impactLoading,
-    error: impactError,
-  } = useAnalyticsQuery('scenario_multi_impact', impactParams, {
-    autoStart: runId > 0 && !!impactParams,
-  });
+  const analysisEnabled = runId > 0 && facilities.length > 0;
 
   const canAddFacility =
     !!selectedDistrict &&
@@ -170,7 +150,7 @@ export function ScenarioPage() {
   const canSave =
     scenarioName.trim().length > 0 && facilities.length > 0 && !saving;
 
-  const canRun = facilities.length > 0 && !impactLoading;
+  const canRun = facilities.length > 0;
 
   const addFacility = () => {
     if (!selectedDistrict || !canAddFacility) return;
@@ -474,100 +454,23 @@ export function ScenarioPage() {
                 disabled={!canRun}
                 onClick={() => setRunId((id) => id + 1)}
               >
-                {impactLoading ? 'Analyzing…' : 'Run scenario analysis'}
+                Run scenario analysis
               </Button>
             </CardContent>
           </Card>
 
-          <Card className="shadow-sm border-border/60">
-            <CardHeader>
-              <CardTitle>Baseline vs scenario by district</CardTitle>
-              <CardDescription>
-                Demand from <code className="text-xs">health_indicator</code>; supply uses{' '}
-                <code className="text-xs">facility</code>,{' '}
-                <code className="text-xs">facility_specialty</code>, and{' '}
-                <code className="text-xs">specialty_category_mapping</code>.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {runId === 0 && (
-                <p className="text-sm text-muted-foreground">
-                  Add facilities and run analysis to see per-district deltas across hypertension
-                  demand, facility counts, cardiac supply, and bed capacity.
-                </p>
-              )}
-
-              {impactError && (
-                <div className="text-destructive bg-destructive/10 p-3 rounded-md mb-4">
-                  Error: {impactError}
-                </div>
-              )}
-
-              {impactLoading && (
-                <div className="space-y-2">
-                  <Skeleton className="h-10 w-full" />
-                  <Skeleton className="h-10 w-full" />
-                  <Skeleton className="h-10 w-full" />
-                </div>
-              )}
-
-              {impactRows && impactRows.length > 0 && !impactLoading && (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>District</TableHead>
-                        <TableHead className="text-right">Hypertension %</TableHead>
-                        <TableHead className="text-right">Facilities</TableHead>
-                        <TableHead className="text-right">Cardiac</TableHead>
-                        <TableHead className="text-right">Beds</TableHead>
-                        <TableHead className="text-right">Gap Δ</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {impactRows.map((row) => (
-                        <TableRow key={`${row.district_name}-${row.state_ut}`}>
-                          <TableCell>
-                            <div className="font-medium">{row.district_name}</div>
-                            <div className="text-xs text-muted-foreground">{row.state_ut}</div>
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            {row.baseline_hypertension_demand_pct}%
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            {row.baseline_facility_count} → {row.scenario_facility_count}
-                            <div className="text-xs text-primary">
-                              {formatDelta(row.delta_facility_count)}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            {row.baseline_cardiac_facility_count} → {row.scenario_cardiac_facility_count}
-                            <div className="text-xs text-primary">
-                              {formatDelta(row.delta_cardiac_facility_count)}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            {row.baseline_bed_capacity.toLocaleString()} →{' '}
-                            {row.scenario_bed_capacity.toLocaleString()}
-                            <div className="text-xs text-primary">
-                              {formatDelta(row.delta_bed_capacity)}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            <Badge
-                              variant={row.delta_supply_demand_gap < 0 ? 'default' : 'secondary'}
-                            >
-                              {formatDelta(row.delta_supply_demand_gap)}
-                            </Badge>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <HypertensionGapSection
+            facilitiesJson={scenarioFacilitiesJson}
+            enabled={analysisEnabled}
+            scenarioMode
+            placeholder={
+              <p className="text-sm text-muted-foreground">
+                Add facilities and run analysis to see hypertension demand vs. cardiac supply
+                metrics, heat map, and top desert districts — with your proposed facilities
+                included in supply counts.
+              </p>
+            }
+          />
         </div>
       </div>
     </div>

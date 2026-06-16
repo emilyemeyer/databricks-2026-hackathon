@@ -2,6 +2,7 @@
 -- Includes demand vs supply scores for side-by-side visual comparison.
 -- confidence_score matches the geographic map logic:
 -- 60% NFHS household sample size + 40% total facility count strength.
+-- @param facilities_json STRING
 
 WITH state_map AS (
   SELECT * FROM VALUES
@@ -22,6 +23,35 @@ WITH state_map AS (
     ('DADRA AND NAGAR HAVELI AND DAMAN AND DIU', 'DADRA & NAGAR HAVELI AND DAMAN & DIU'),
     ('DADRA & NAGAR HAVELI AND DAMAN & DIU', 'DADRA & NAGAR HAVELI AND DAMAN & DIU')
   AS t(raw_state, norm_state)
+),
+
+scenario_facilities AS (
+  SELECT
+    UPPER(TRIM(f.district_name)) AS district_key,
+    COALESCE(sm.norm_state, UPPER(TRIM(f.state_ut))) AS state_key,
+    CASE
+      WHEN LOWER(f.capability) RLIKE 'cardio|cardiac|heart|cardiology' THEN 1
+      ELSE 0
+    END AS is_cardiac
+  FROM (
+    SELECT explode(
+      from_json(
+        :facilities_json,
+        'array<struct<district_name:string,state_ut:string,capability:string,capacity:int>>'
+      )
+    ) AS f
+  )
+  LEFT JOIN state_map sm ON UPPER(TRIM(f.state_ut)) = sm.raw_state
+),
+
+scenario_by_district AS (
+  SELECT
+    district_key,
+    state_key,
+    COUNT(*) AS added_facilities,
+    SUM(is_cardiac) AS added_cardiac_facilities
+  FROM scenario_facilities
+  GROUP BY district_key, state_key
 ),
 
 pincode_one AS (
@@ -55,7 +85,7 @@ facility_district AS (
   WHERE TRY_CAST(REGEXP_REPLACE(f.address_zipOrPostcode, '[^0-9]', '') AS BIGINT) IS NOT NULL
 ),
 
-district_supply AS (
+district_supply_base AS (
   SELECT
     UPPER(TRIM(district)) AS district_key,
     COALESCE(sm.norm_state, UPPER(TRIM(statename))) AS state_key,
@@ -76,6 +106,17 @@ district_supply AS (
   LEFT JOIN state_map sm
     ON UPPER(TRIM(fd.statename)) = sm.raw_state
   GROUP BY 1, 2
+),
+
+district_supply AS (
+  SELECT
+    COALESCE(b.district_key, s.district_key) AS district_key,
+    COALESCE(b.state_key, s.state_key) AS state_key,
+    COALESCE(b.total_facilities, 0) + COALESCE(s.added_facilities, 0) AS total_facilities,
+    COALESCE(b.cardiac_facilities, 0) + COALESCE(s.added_cardiac_facilities, 0) AS cardiac_facilities
+  FROM district_supply_base b
+  FULL OUTER JOIN scenario_by_district s
+    ON b.district_key = s.district_key AND b.state_key = s.state_key
 ),
 
 nfhs AS (

@@ -154,28 +154,6 @@ declare module "@databricks/appkit-ui/react" {
           value: string;
         }>;
       };
-    mapping_facility_specialty: {
-        name: "mapping_facility_specialty";
-        parameters: Record<string, never>;
-        result: Array<{
-          /** @sqlType STRING */
-          facility_id: string;
-          /** @sqlType STRING */
-          facility_name: string;
-          /** @sqlType STRING */
-          specialty: string;
-          /** @sqlType STRING */
-          specialty_category: string;
-        }>;
-      };
-    mapping_health_indicator_specialty: {
-        name: "mapping_health_indicator_specialty";
-        parameters: Record<string, never>;
-        result: Array<{
-          /** @sqlType STRING */
-          indicator_key: string;
-          /** @sqlType STRING */
-          specialty_category: string;
     hypertension_gap_by_district: {
         name: "hypertension_gap_by_district";
         parameters: Record<string, never>;
@@ -218,7 +196,10 @@ declare module "@databricks/appkit-ui/react" {
       };
     hypertension_gap_geo: {
         name: "hypertension_gap_geo";
-        parameters: Record<string, never>;
+        parameters: {
+          /** STRING - use sql.string() */
+          facilities_json: SQLStringMarker;
+        };
         result: Array<{
           /** @sqlType STRING */
           district_name: string;
@@ -250,7 +231,10 @@ declare module "@databricks/appkit-ui/react" {
       };
     hypertension_gap_summary: {
         name: "hypertension_gap_summary";
-        parameters: Record<string, never>;
+        parameters: {
+          /** STRING - use sql.string() */
+          facilities_json: SQLStringMarker;
+        };
         result: Array<{
           /** @sqlType BIGINT */
           districts_analyzed: number;
@@ -266,7 +250,10 @@ declare module "@databricks/appkit-ui/react" {
       };
     hypertension_gap_table: {
         name: "hypertension_gap_table";
-        parameters: Record<string, never>;
+        parameters: {
+          /** STRING - use sql.string() */
+          facilities_json: SQLStringMarker;
+        };
         result: Array<{
           /** @sqlType STRING */
           district_name: string;
@@ -306,6 +293,30 @@ declare module "@databricks/appkit-ui/react" {
           hypertension_pct: number;
           /** @sqlType BIGINT */
           cardiac_facilities: number;
+        }>;
+      };
+    mapping_facility_specialty: {
+        name: "mapping_facility_specialty";
+        parameters: Record<string, never>;
+        result: Array<{
+          /** @sqlType STRING */
+          facility_id: string;
+          /** @sqlType STRING */
+          facility_name: string;
+          /** @sqlType STRING */
+          specialty: string;
+          /** @sqlType STRING */
+          specialty_category: string;
+        }>;
+      };
+    mapping_health_indicator_specialty: {
+        name: "mapping_health_indicator_specialty";
+        parameters: Record<string, never>;
+        result: Array<{
+          /** @sqlType STRING */
+          indicator_key: string;
+          /** @sqlType STRING */
+          specialty_category: string;
         }>;
       };
     mocked_sales: {

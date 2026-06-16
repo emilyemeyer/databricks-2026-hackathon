@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import ReactECharts from 'echarts-for-react';
 import * as echarts from 'echarts';
+import { sql } from '@databricks/appkit-ui/js';
 import { Check, ChevronsUpDown } from 'lucide-react';
 import {
   Button,
@@ -273,13 +274,22 @@ function confidenceBucket(score: number): ConfidenceLevel {
 }
 
 
-export function SupplyDemandHeatMap() {
-  const { data, loading, error } = useAnalyticsQuery('hypertension_gap_geo');
-  const {
-    data: demandRankedData,
-    loading: demandRankedLoading,
-    error: demandRankedError,
-  } = useAnalyticsQuery('district_demand_ranked');
+type SupplyDemandHeatMapProps = {
+  facilitiesJson?: string;
+  enabled?: boolean;
+};
+
+export function SupplyDemandHeatMap({
+  facilitiesJson = '[]',
+  enabled = true,
+}: SupplyDemandHeatMapProps) {
+  const queryParams = useMemo(
+    () => ({ facilities_json: sql.string(facilitiesJson) }),
+    [facilitiesJson],
+  );
+  const { data, loading, error } = useAnalyticsQuery('hypertension_gap_geo', queryParams, {
+    autoStart: enabled,
+  });
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
   const [selectedLevels, setSelectedLevels] = useState<ConfidenceLevel[]>(ALL_CONFIDENCE_LEVELS);
