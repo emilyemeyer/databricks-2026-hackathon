@@ -16,6 +16,8 @@ import {
 } from '@databricks/appkit-ui/react';
 import { SupplyDemandHeatMap } from './SupplyDemandHeatMap';
 import {
+  BEDS_PER_BURDEN_UNIT,
+  categorySupplyBeds,
   computeRiskRange,
   desertRiskScore,
   desertRiskTierFromScore,
@@ -80,16 +82,18 @@ function RiskCategoryBadge({
   demand,
   supply,
   categoryFacilities,
+  categoryBedCapacity,
   specialtyCategory,
   riskRange,
 }: {
   demand: number;
   supply: number;
   categoryFacilities: number;
+  categoryBedCapacity: number;
   specialtyCategory: string;
   riskRange: { min: number; max: number };
 }) {
-  if (categoryFacilities === 0) {
+  if (categoryBedCapacity === 0) {
     return (
       <span className="inline-flex rounded-full px-2 py-0.5 text-xs font-medium bg-destructive/15 text-destructive">
         {isAllSpecialtyCategories(specialtyCategory)
@@ -117,6 +121,7 @@ type GapTableRow = {
   state_ut: string;
   demand_pct: number;
   category_facilities: number;
+  category_bed_capacity?: number;
   gap_score: number;
   gap_flag: string;
   demand_score: number;
@@ -183,7 +188,7 @@ function GapDistrictTable({
                 <TableHead>State</TableHead>
                 <TableHead className="text-right">Demand %</TableHead>
                 <TableHead className="text-right">{facilitiesLabel}</TableHead>
-                {compareMode && <TableHead className="text-right">Δ Facilities</TableHead>}
+                {compareMode && <TableHead className="text-right">Δ Beds</TableHead>}
                 <TableHead>Demand vs Supply</TableHead>
                 <TableHead className="text-right">Data Confidence</TableHead>
                 <TableHead className={headClass('desert')}>Desert risk</TableHead>
@@ -193,10 +198,9 @@ function GapDistrictTable({
             <TableBody>
               {rows.map((row) => {
                 const baseline = baselineByKey.get(`${row.district_name}-${row.state_ut}`);
-                const cardiacDelta =
-                  baseline != null
-                    ? Number(row.category_facilities) - Number(baseline.category_facilities)
-                    : 0;
+                const rowBeds = categorySupplyBeds(row);
+                const baselineBeds = baseline ? categorySupplyBeds(baseline) : 0;
+                const bedDelta = baseline != null ? rowBeds - baselineBeds : 0;
                 const baselineRisk =
                   baseline != null
                     ? desertRiskScore(Number(baseline.demand_score), Number(baseline.supply_score))
@@ -238,23 +242,23 @@ function GapDistrictTable({
                   <TableCell className="text-right">
                     {compareMode && baseline != null ? (
                       <span className="tabular-nums">
-                        {baseline.category_facilities} → {row.category_facilities}
+                        {baselineBeds.toLocaleString()} → {rowBeds.toLocaleString()}
                       </span>
                     ) : (
-                      row.category_facilities
+                      rowBeds.toLocaleString()
                     )}
                   </TableCell>
                   {compareMode && (
                     <TableCell
                       className={`text-right tabular-nums font-medium ${
-                        cardiacDelta > 0
+                        bedDelta > 0
                           ? 'text-emerald-600'
-                          : cardiacDelta < 0
+                          : bedDelta < 0
                             ? 'text-destructive'
                             : 'text-muted-foreground'
                       }`}
                     >
-                      {cardiacDelta > 0 ? `+${cardiacDelta}` : cardiacDelta === 0 ? '—' : cardiacDelta}
+                      {bedDelta > 0 ? `+${bedDelta.toLocaleString()}` : bedDelta === 0 ? '—' : bedDelta.toLocaleString()}
                     </TableCell>
                   )}
                   <TableCell>
@@ -293,6 +297,7 @@ function GapDistrictTable({
                       demand={Number(row.demand_score)}
                       supply={Number(row.supply_score)}
                       categoryFacilities={Number(row.category_facilities)}
+                      categoryBedCapacity={rowBeds}
                       specialtyCategory={specialtyCategory}
                       riskRange={riskRange}
                     />
@@ -312,6 +317,8 @@ export type HypertensionGapSectionProps = {
   /** Raw JSON array of scenario facilities; pass `[]` for baseline analytics. */
   facilitiesJson?: string;
   specialtyCategory?: string;
+  /** Bumps analytics queries when the user re-runs scenario analysis. */
+  runKey?: number;
   /** When false, queries are not run and placeholder content is shown. */
   enabled?: boolean;
   /** Adjust copy for scenario analysis context. */
@@ -324,6 +331,7 @@ export type HypertensionGapSectionProps = {
 export function HypertensionGapSection({
   facilitiesJson = '[]',
   specialtyCategory = DEFAULT_ANALYTICS_SPECIALTY,
+  runKey = 0,
   enabled = true,
   scenarioMode = false,
   placeholder,
@@ -331,22 +339,26 @@ export function HypertensionGapSection({
 }: HypertensionGapSectionProps) {
   const categoryLabel = specialtyCategoryLabel(specialtyCategory);
   const isAllCategories = isAllSpecialtyCategories(specialtyCategory);
-  const facilitiesLabel = isAllCategories ? 'Mapped specialty facilities' : `${categoryLabel} facilities`;
+  const facilitiesLabel = isAllCategories
+    ? 'Mapped specialty beds'
+    : `${categoryLabel} beds`;
 
   const queryParams = useMemo(
     () => ({
       facilities_json: sql.string(facilitiesJson),
       specialty_category: sql.string(specialtyCategory),
+      _run: sql.string(String(runKey)),
     }),
-    [facilitiesJson, specialtyCategory],
+    [facilitiesJson, specialtyCategory, runKey],
   );
 
   const baselineParams = useMemo(
     () => ({
       facilities_json: sql.string('[]'),
       specialty_category: sql.string(specialtyCategory),
+      _run: sql.string(String(runKey)),
     }),
-    [specialtyCategory],
+    [specialtyCategory, runKey],
   );
 
   const queryOptions = useMemo(() => ({ autoStart: enabled }), [enabled]);
@@ -395,6 +407,7 @@ export function HypertensionGapSection({
       district_name: string;
       state_ut: string;
       category_facilities: number;
+      category_bed_capacity?: number;
       demand_norm: number;
       supply_norm: number;
     }> | undefined,
@@ -405,7 +418,7 @@ export function HypertensionGapSection({
     let totalCardiac = 0;
     let highest: { label: string; score: number } | null = null;
     for (const row of rows) {
-      totalCardiac += Number(row.category_facilities);
+      totalCardiac += categorySupplyBeds(row);
       const score = desertRiskScore(Number(row.demand_norm), Number(row.supply_norm));
       if (!highest || score > highest.score) {
         highest = { label: `${row.district_name}, ${row.state_ut}`, score };
@@ -483,25 +496,25 @@ export function HypertensionGapSection({
         <p className="text-sm text-muted-foreground mt-2 max-w-3xl">
           {isAllCategories ? (
             <>
-              Compares aggregate NFHS district health demand (all mapped indicators) with facilities
-              that have any mapped specialty (supply). Desert risk highlights districts where overall
-              mapped demand is high relative to mapped supply.
+              Compares aggregate NFHS district health demand (all mapped indicators) with category
+              bed capacity (supply). Demand scales with both prevalence and NFHS surveyed households
+              in the district — larger populations require more beds for the same adequacy.
             </>
           ) : (
             <>
               Compares NFHS-5 district health indicators mapped to{' '}
               <strong>{categoryLabel}</strong> via{' '}
-              <code className="text-xs">health_indicator_specialty</code> (demand) with facility
-              counts whose specialties map to the same category (supply). A high desert risk means
-              relatively high category demand combined with low category supply.
+              <code className="text-xs">health_indicator_specialty</code> (demand) with category bed
+              capacity (supply). Demand burden is prevalence × surveyed households, so districts
+              with more people need more beds to close the same gap.
             </>
           )}
           {scenarioMode && (
             <>
               {' '}
               Results compare baseline (current supply) with your scenario (baseline plus proposed
-              facilities). Category supply increases when proposed capability matches a specialty in{' '}
-              <code className="text-xs">specialty_category_mapping</code> for this category.
+              facilities). Proposed bed capacity is added to category supply and compared to local
+              demand — large investments can fully close a district gap.
             </>
           )}
         </p>
@@ -511,7 +524,7 @@ export function HypertensionGapSection({
         {scenarioMode ? (
           <>
             <CompareMetricCard
-              title={isAllCategories ? 'Total mapped specialty facilities' : `Total ${categoryLabel} facilities`}
+              title={isAllCategories ? 'Total mapped specialty beds' : `Total ${categoryLabel} beds`}
               loading={geoLoading}
               baseline={
                 baselineGeoStats.totalCardiac != null
@@ -667,7 +680,7 @@ export function HypertensionGapSection({
         <Card className="shadow-sm border-border/60">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">
-              {isAllCategories ? 'Total mapped specialty facilities' : `Total ${categoryLabel} facilities`}
+              {isAllCategories ? 'Total mapped specialty beds' : `Total ${categoryLabel} beds`}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -768,6 +781,7 @@ export function HypertensionGapSection({
           <SupplyDemandHeatMap
             facilitiesJson={facilitiesJson}
             specialtyCategory={specialtyCategory}
+            runKey={runKey}
             enabled={enabled}
             compareMode={scenarioMode}
             onDistrictClick={onDistrictClick}
@@ -779,7 +793,7 @@ export function HypertensionGapSection({
         title={isAllCategories ? 'Top 25 desert districts (all categories)' : `Top 25 ${categoryLabel} desert districts`}
         description={
           scenarioMode
-            ? 'Scenario rankings with baseline → scenario facility counts and risk deltas. Negative risk Δ means improved supply vs. demand balance.'
+            ? 'Scenario rankings with baseline → scenario bed counts and risk deltas. Negative risk Δ means improved supply vs. demand balance.'
             : isAllCategories
               ? 'Ranked by aggregate desert risk across all mapped demand and supply. Highlights districts with high overall burden and scarce mapped facilities.'
               : `Ranked by desert risk (category demand × lack of ${categoryLabel} supply). Highlights districts where burden is high and category supply is scarce.`
@@ -824,14 +838,15 @@ export function HypertensionGapSection({
                 {isAllCategories ? (
                   <>
                     averages all NFHS-5 indicator values with any{' '}
-                    <code className="text-xs">health_indicator_specialty</code> mapping. Values are
-                    survey prevalence or coverage rates — not patient counts.
+                    <code className="text-xs">health_indicator_specialty</code> mapping, multiplied
+                    by surveyed households to estimate burden. Larger districts need more beds for
+                    the same prevalence rate.
                   </>
                 ) : (
                   <>
                     averages NFHS-5 indicator values mapped to <strong>{categoryLabel}</strong> in{' '}
-                    <code className="text-xs">health_indicator_specialty</code>. Values are survey
-                    prevalence or coverage rates — not patient counts or population-weighted burden.
+                    <code className="text-xs">health_indicator_specialty</code>, then multiplies by
+                    surveyed households for population-weighted burden.
                   </>
                 )}
               </li>
@@ -839,15 +854,18 @@ export function HypertensionGapSection({
                 <span className="font-medium">Supply</span>{' '}
                 {isAllCategories ? (
                   <>
-                    counts distinct facilities per district with at least one specialty in{' '}
-                    <code className="text-xs">specialty_category_mapping</code>, then normalizes
-                    nationally. Each matching facility counts as 1.
+                    sums category bed capacity per district (facility{' '}
+                    <code className="text-xs">bed_count</code>, default 25 when missing). Scenario
+                    facilities add entered bed counts. Expected beds = (prevalence % ÷ 100) ×
+                    households × {BEDS_PER_BURDEN_UNIT}; supply adequacy is actual beds ÷ expected,
+                    capped at 1.0.
                   </>
                 ) : (
                   <>
-                    counts distinct facilities per district with at least one specialty mapped to{' '}
-                    <strong>{categoryLabel}</strong>, then normalizes against the best-supplied
-                    district nationally. Each matching facility counts as 1.
+                    sums <strong>{categoryLabel}</strong> bed capacity per district (mapped facility
+                    beds plus scenario bed counts). Expected beds = (prevalence % ÷ 100) × households
+                    × {BEDS_PER_BURDEN_UNIT}; supply adequacy is actual beds ÷ expected, capped at
+                    1.0.
                   </>
                 )}
               </li>

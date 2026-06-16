@@ -21,6 +21,7 @@ import {
   useAnalyticsQuery,
 } from '@databricks/appkit-ui/react';
 import {
+  categorySupplyBeds,
   computeRiskRange,
   desertRiskScore,
   desertRiskTierFromScore,
@@ -39,6 +40,8 @@ type GeoRow = {
   demand_pct: number | string;
   households_surveyed: number | string;
   category_facilities: number | string;
+  category_bed_capacity?: number | string;
+  expected_beds?: number | string;
   total_facilities: number | string;
   demand_norm: number | string;
   supply_norm: number | string;
@@ -56,6 +59,8 @@ type DistrictMapPoint = {
   state_ut: string;
   demand_pct: number;
   category_facilities: number;
+  category_bed_capacity?: number;
+  expected_beds?: number;
   total_facilities: number;
   demand_norm: number;
   supply_norm: number;
@@ -93,7 +98,10 @@ type DistrictTooltipInfo = {
   desert_risk_score?: number;
   desert_risk_norm?: number;
   demand_pct?: number;
+  households_surveyed?: number;
   category_facilities?: number;
+  category_bed_capacity?: number;
+  expected_beds?: number;
   total_facilities?: number;
   demand_norm?: number;
   supply_norm?: number;
@@ -168,7 +176,8 @@ function formatDistrictTooltip(info: DistrictTooltipInfo, riskRange: { min: numb
     sections.push(
       '<div style="margin-top:8px;padding-top:8px;border-top:1px solid #e5e7eb;color:#374151;font-size:11px;line-height:1.6">',
       `Desert risk: ${info.desert_risk_score!.toFixed(3)} (${desertRiskTierLabel(tier)}) · intensity ${info.desert_risk_norm!.toFixed(2)}`,
-      `<br/>Demand: ${info.demand_pct!.toFixed(1)}% · Category facilities: ${info.category_facilities} / ${info.total_facilities}`,
+      `<br/>Demand: ${info.demand_pct!.toFixed(1)}% · ${Number(info.households_surveyed ?? 0).toLocaleString()} NFHS households`,
+      `<br/>Beds: ${(info.category_bed_capacity ?? info.category_facilities ?? 0).toLocaleString()} / ${Math.round(Number(info.expected_beds ?? 0)).toLocaleString()} expected · ${info.total_facilities} facilities`,
       `<br/>Demand ${info.demand_norm!.toFixed(2)} · Supply ${info.supply_norm!.toFixed(2)} · Confidence: ${confidenceLabel(info.confidence_score!)} (${info.confidence_score!.toFixed(2)})`,
       '</div>',
     );
@@ -228,7 +237,10 @@ function buildTooltipByRegion(
       desert_risk_score: risk,
       desert_risk_norm: normalizeRiskScore(risk, riskRange.min, riskRange.max),
       demand_pct: Number(row.demand_pct),
+      households_surveyed: Number(row.households_surveyed),
       category_facilities: Number(row.category_facilities),
+      category_bed_capacity: categorySupplyBeds(row),
+      expected_beds: Number(row.expected_beds ?? 0),
       total_facilities: Number(row.total_facilities),
       demand_norm: demandNorm,
       supply_norm: supplyNorm,
@@ -265,19 +277,21 @@ function formatCompareDistrictTooltip(
   const baselineSupply = baseline ? Number(baseline.supply_norm) : scenarioSupply;
   const baselineRisk = desertRiskScore(baselineDemand, baselineSupply);
   const baselineNorm = normalizeRiskScore(baselineRisk, riskRange.min, riskRange.max);
-  const riskDelta = scenarioRisk - baselineRisk;
-  const cardiacDelta = baseline
-    ? Number(scenario.category_facilities) - Number(baseline.category_facilities)
-    : 0;
+  const normalizedRiskDelta = scenarioNorm - baselineNorm;
+  const scenarioBeds = categorySupplyBeds(scenario);
+  const baselineBeds = baseline ? categorySupplyBeds(baseline) : scenarioBeds;
+  const bedDelta = baseline ? scenarioBeds - baselineBeds : 0;
+  const scenarioExpected = Math.round(Number(scenario.expected_beds ?? 0));
+  const baselineExpected = Math.round(Number(baseline?.expected_beds ?? scenario.expected_beds ?? 0));
 
   const sections = [
     `<div style="font-size:14px;font-weight:700;margin-bottom:2px">${scenario.district_name}</div>`,
     `<div style="color:#6b7280;margin-bottom:6px">${scenario.state_ut}</div>`,
     formatRankedDemandNeeds(rankedNeeds),
     '<div style="margin-top:8px;padding-top:8px;border-top:1px solid #e5e7eb;font-size:11px;line-height:1.6">',
-    `<div><strong>Baseline</strong> · risk ${baselineNorm.toFixed(2)} · facilities ${baseline?.category_facilities ?? scenario.category_facilities}</div>`,
-    `<div><strong>Scenario</strong> · risk ${scenarioNorm.toFixed(2)} · facilities ${scenario.category_facilities}</div>`,
-    `<div style="margin-top:4px;font-weight:600;color:${riskDelta < 0 ? '#059669' : riskDelta > 0 ? '#dc2626' : '#6b7280'}">Δ risk ${riskDelta > 0 ? '+' : ''}${riskDelta.toFixed(3)} · Δ facilities ${cardiacDelta > 0 ? '+' : ''}${cardiacDelta}</div>`,
+    `<div><strong>Baseline</strong> · risk ${baselineNorm.toFixed(2)} · beds ${baselineBeds.toLocaleString()} / ${baselineExpected.toLocaleString()} expected</div>`,
+    `<div><strong>Scenario</strong> · risk ${scenarioNorm.toFixed(2)} · beds ${scenarioBeds.toLocaleString()} / ${scenarioExpected.toLocaleString()} expected</div>`,
+    `<div style="margin-top:4px;font-weight:600;color:${normalizedRiskDelta < 0 ? '#059669' : normalizedRiskDelta > 0 ? '#dc2626' : '#6b7280'}">Δ risk ${normalizedRiskDelta > 0 ? '+' : ''}${normalizedRiskDelta.toFixed(2)} · Δ beds ${bedDelta > 0 ? '+' : ''}${bedDelta.toLocaleString()}</div>`,
     '</div>',
   ];
   return sections.join('');
@@ -317,6 +331,7 @@ type MapViewMode = 'delta' | 'baseline' | 'scenario';
 type SupplyDemandHeatMapProps = {
   facilitiesJson?: string;
   specialtyCategory?: string;
+  runKey?: number;
   enabled?: boolean;
   /** When true, fetch baseline and show baseline / scenario / change views. */
   compareMode?: boolean;
@@ -327,6 +342,7 @@ type SupplyDemandHeatMapProps = {
 export function SupplyDemandHeatMap({
   facilitiesJson = '[]',
   specialtyCategory = DEFAULT_ANALYTICS_SPECIALTY,
+  runKey = 0,
   enabled = true,
   compareMode = false,
   onDistrictClick,
@@ -338,15 +354,17 @@ export function SupplyDemandHeatMap({
     () => ({
       facilities_json: sql.string('[]'),
       specialty_category: sql.string(specialtyCategory),
+      _run: sql.string(String(runKey)),
     }),
-    [specialtyCategory],
+    [specialtyCategory, runKey],
   );
   const queryParams = useMemo(
     () => ({
       facilities_json: sql.string(facilitiesJson),
       specialty_category: sql.string(specialtyCategory),
+      _run: sql.string(String(runKey)),
     }),
-    [facilitiesJson, specialtyCategory],
+    [facilitiesJson, specialtyCategory, runKey],
   );
   const { data, loading, error } = useAnalyticsQuery('hypertension_gap_geo', queryParams, {
     autoStart: enabled,
@@ -401,20 +419,32 @@ export function SupplyDemandHeatMap({
     if (compareMode) {
       setMapView('delta');
     }
-  }, [compareMode, facilitiesJson]);
+  }, [compareMode, facilitiesJson, runKey]);
 
   const scenarioRows = (data ?? []) as GeoRow[];
   const baselineRows = (baselineData ?? []) as GeoRow[];
-  const allRows = compareMode && mapView === 'baseline' ? baselineRows : scenarioRows;
+
+  const mapSourceRows = useMemo(() => {
+    if (!compareMode) return scenarioRows;
+    if (mapView === 'baseline') return baselineRows;
+    return scenarioRows;
+  }, [baselineRows, compareMode, mapView, scenarioRows]);
+
+  const allRows = mapSourceRows;
   const demandByDistrict = useMemo(
     () => buildDemandByDistrict((demandRankedData ?? []) as DemandRankRow[]),
     [demandRankedData],
   );
 
-  const riskRange = useMemo(
-    () => computeRiskRange(compareMode ? baselineRows : allRows),
-    [allRows, baselineRows, compareMode],
-  );
+  const riskRange = useMemo(() => {
+    if (compareMode && mapView === 'scenario') {
+      return computeRiskRange(scenarioRows);
+    }
+    if (compareMode) {
+      return computeRiskRange(baselineRows);
+    }
+    return computeRiskRange(allRows);
+  }, [allRows, baselineRows, compareMode, mapView, scenarioRows]);
 
   const baselineByKey = useMemo(() => {
     const map = new Map<string, GeoRow>();
@@ -459,7 +489,7 @@ export function SupplyDemandHeatMap({
 
   const filteredRows = useMemo(
     () =>
-      (mapView === 'delta' && compareMode ? scenarioRows : allRows).filter((row) => {
+      mapSourceRows.filter((row) => {
         if (!selectedLevels.includes(confidenceBucket(Number(row.confidence_score)))) {
           return false;
         }
@@ -468,7 +498,7 @@ export function SupplyDemandHeatMap({
         }
         return true;
       }),
-    [allRows, compareMode, mapView, scenarioRows, selectedDistricts, selectedLevels],
+    [mapSourceRows, selectedDistricts, selectedLevels],
   );
 
   const tooltipByRegion = useMemo(
@@ -499,14 +529,20 @@ export function SupplyDemandHeatMap({
 
     const mapData: DistrictMapPoint[] = filteredRows.map((row) => {
       const key = districtKey(row.district_name, row.state_ut);
-      const demandNorm = Number(row.demand_norm);
-      const supplyNorm = Number(row.supply_norm);
+      const baseline = baselineByKey.get(key);
+      const scenario = scenarioByKey.get(key) ?? row;
+
+      const demandNorm = Number(
+        compareMode && mapView === 'baseline' ? row.demand_norm : scenario.demand_norm,
+      );
+      const supplyNorm = Number(
+        compareMode && mapView === 'baseline' ? row.supply_norm : scenario.supply_norm,
+      );
       const risk = desertRiskScore(demandNorm, supplyNorm);
       const desertRiskNorm = normalizeRiskScore(risk, riskRange.min, riskRange.max);
 
       let value = desertRiskNorm;
       if (isDeltaView) {
-        const baseline = baselineByKey.get(key);
         if (baseline) {
           const baselineRisk = desertRiskScore(
             Number(baseline.demand_norm),
@@ -517,24 +553,24 @@ export function SupplyDemandHeatMap({
         } else {
           value = 0;
         }
-      } else if (compareMode && mapView === 'baseline') {
-        value = desertRiskNorm;
       }
 
       const demandInfo = demandByDistrict.get(key);
       return {
         name: key,
         value,
-        district_name: row.district_name,
-        state_ut: row.state_ut,
-        demand_pct: Number(row.demand_pct),
-        category_facilities: Number(row.category_facilities),
-        total_facilities: Number(row.total_facilities),
+        district_name: scenario.district_name,
+        state_ut: scenario.state_ut,
+        demand_pct: Number(scenario.demand_pct),
+        category_facilities: Number(scenario.category_facilities),
+        category_bed_capacity: categorySupplyBeds(scenario),
+        expected_beds: Number(scenario.expected_beds ?? 0),
+        total_facilities: Number(scenario.total_facilities),
         demand_norm: demandNorm,
         supply_norm: supplyNorm,
         desert_risk_score: risk,
         desert_risk_norm: desertRiskNorm,
-        confidence_score: Number(row.confidence_score),
+        confidence_score: Number(scenario.confidence_score),
         ranked_needs: demandInfo?.categories ?? [],
       };
     });

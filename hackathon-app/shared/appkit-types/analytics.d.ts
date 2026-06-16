@@ -201,6 +201,8 @@ declare module "@databricks/appkit-ui/react" {
           specialty_category: SQLStringMarker;
           /** STRING - use sql.string() */
           facilities_json: SQLStringMarker;
+          /** STRING - use sql.string() */
+          _run: SQLStringMarker;
         };
         result: Array<{
           /** @sqlType STRING */
@@ -213,6 +215,10 @@ declare module "@databricks/appkit-ui/react" {
           households_surveyed: number;
           /** @sqlType BIGINT */
           category_facilities: number;
+          /** @sqlType BIGINT */
+          category_bed_capacity: number;
+          /** @sqlType DOUBLE */
+          expected_beds: number;
           /** @sqlType BIGINT */
           total_facilities: number;
           /** @sqlType DOUBLE */
@@ -238,6 +244,8 @@ declare module "@databricks/appkit-ui/react" {
           specialty_category: SQLStringMarker;
           /** STRING - use sql.string() */
           facilities_json: SQLStringMarker;
+          /** STRING - use sql.string() */
+          _run: SQLStringMarker;
         };
         result: Array<{
           /** @sqlType BIGINT */
@@ -259,6 +267,8 @@ declare module "@databricks/appkit-ui/react" {
           specialty_category: SQLStringMarker;
           /** STRING - use sql.string() */
           facilities_json: SQLStringMarker;
+          /** STRING - use sql.string() */
+          _run: SQLStringMarker;
         };
         result: Array<{
           /** @sqlType STRING */
@@ -273,6 +283,10 @@ declare module "@databricks/appkit-ui/react" {
           total_facilities: number;
           /** @sqlType BIGINT */
           category_facilities: number;
+          /** @sqlType BIGINT */
+          category_bed_capacity: number;
+          /** @sqlType DOUBLE */
+          expected_beds: number;
           /** @sqlType DOUBLE */
           gap_score: number;
           /** @sqlType DOUBLE */

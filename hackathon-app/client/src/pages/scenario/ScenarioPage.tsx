@@ -509,12 +509,13 @@ export function ScenarioPage() {
           <HypertensionGapSection
             facilitiesJson={scenarioFacilitiesJson}
             specialtyCategory={specialtyCategory}
+            runKey={runId}
             enabled={analysisEnabled}
             scenarioMode
             placeholder={
               <p className="text-sm text-muted-foreground">
                 Add facilities and run analysis to see specialty demand vs. supply metrics, heat
-                map, and top desert districts — with your proposed facilities included in supply
+                map, and top desert districts — with your proposed bed capacity included in supply
                 counts.
               </p>
             }

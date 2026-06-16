@@ -2,6 +2,8 @@
 -- Replace ${TARGET} with e.g. dais_2026.hackathon.
 
 -- Demo clinic: no rows in facility_specialty → facility_without_specialty gap.
+-- Demo facility id aaaaaaaa-bbbb-4ccc-8ddd-000000000001 is the only facility that
+-- intentionally lacks facility_specialty rows (see correct_dq_demo_data.sql).
 MERGE INTO ${TARGET}.facility AS target
 USING (
   SELECT
