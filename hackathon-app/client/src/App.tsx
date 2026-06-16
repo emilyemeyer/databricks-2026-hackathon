@@ -13,6 +13,7 @@ import {
   useIsMobile,
 } from '@databricks/appkit-ui/react';
 import { Menu } from 'lucide-react';
+import { APP_NAME } from './lib/app-branding';
 import { AnalyticsPage } from './pages/analytics/AnalyticsPage';
 import { ScenarioPage } from './pages/scenario/ScenarioPage';
 import { DataQualityPage } from './pages/data-quality/DataQualityPage';
@@ -68,7 +69,7 @@ function Layout() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <header className="border-b px-4 md:px-6 py-3 flex items-center gap-4">
-        <h1 className="text-lg font-semibold text-foreground">Virtue Foundation Explorer</h1>
+        <h1 className="text-lg font-semibold text-foreground">{APP_NAME}</h1>
         {/* Desktop nav — hidden below md breakpoint */}
         <NavLinks className="hidden md:flex gap-1" linkClass={navLinkClass} />
         {/* Mobile nav — visible below md breakpoint */}
@@ -122,12 +123,10 @@ function HomePage() {
         <p className="text-sm font-medium uppercase tracking-wide text-primary mb-3">
           DAIS 2026 Hackathon
         </p>
-        <h2 className="text-3xl md:text-4xl font-bold mb-3 text-foreground">
-          Virtue Foundation Healthcare Explorer
-        </h2>
+        <h2 className="text-3xl md:text-4xl font-bold mb-3 text-foreground">{APP_NAME}</h2>
         <p className="text-lg text-muted-foreground max-w-2xl">
-          Explore Indian healthcare facilities, run scenario analysis, review data quality,
-          and chat with Claude via Model Serving.
+          Explore Virtue Foundation healthcare facility data across India — map supply and demand
+          gaps, model new facilities, review data quality, and chat with Claude via Model Serving.
         </p>
       </div>
 

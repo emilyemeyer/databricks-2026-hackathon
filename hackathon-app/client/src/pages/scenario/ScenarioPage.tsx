@@ -29,6 +29,8 @@ import {
 } from '../../lib/scenario-api';
 import type { ScenarioFacilityInput, ScenarioSummary } from '../../types/scenario';
 import { HypertensionGapSection } from '../analytics/HypertensionGapSection';
+import { SpecialtyCategorySelect } from '../analytics/SpecialtyCategorySelect';
+import { DEFAULT_ANALYTICS_SPECIALTY } from '../analytics/analyticsConstants';
 
 type DraftFacility = ScenarioFacilityInput & { clientId: string };
 
@@ -56,6 +58,7 @@ export function ScenarioPage() {
   const [capacity, setCapacity] = useState('100');
 
   const [runId, setRunId] = useState(0);
+  const [specialtyCategory, setSpecialtyCategory] = useState(DEFAULT_ANALYTICS_SPECIALTY);
   const [searchParams, setSearchParams] = useSearchParams();
 
   const loadScenario = useCallback(async (id: number) => {
@@ -105,6 +108,45 @@ export function ScenarioPage() {
     void loadScenario(id);
     setSearchParams({}, { replace: true });
   }, [loadScenario, searchParams, setSearchParams]);
+
+  useEffect(() => {
+    const stateUt = searchParams.get('state_ut');
+    const districtName = searchParams.get('district_name');
+    const specialty = searchParams.get('specialty_category');
+
+    if (specialty) {
+      setSpecialtyCategory(specialty);
+    }
+
+    if (!stateUt || !districtName || !districts) {
+      return;
+    }
+
+    const match = districts.find(
+      (d) => d.state_ut === stateUt && d.district_name === districtName,
+    );
+    if (!match) {
+      return;
+    }
+
+    setSelectedStateUt(match.state_ut);
+    setSelectedDistrictKey(match.district_key);
+
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete('state_ut');
+        next.delete('district_name');
+        next.delete('specialty_category');
+        return next;
+      },
+      { replace: true },
+    );
+
+    requestAnimationFrame(() => {
+      document.getElementById('add-facility')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }, [districts, searchParams, setSearchParams]);
 
   const stateOptions = useMemo(() => {
     if (!districts) return [];
@@ -222,82 +264,16 @@ export function ScenarioPage() {
         </p>
       </div>
 
+      <SpecialtyCategorySelect
+        value={specialtyCategory}
+        onValueChange={setSpecialtyCategory}
+      />
+
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="space-y-6 xl:col-span-1">
-          <Card className="shadow-sm border-border/60">
+          <Card id="add-facility" className="shadow-sm border-border/60 scroll-mt-6">
             <CardHeader>
-              <CardTitle>Scenario workspace</CardTitle>
-              <CardDescription>
-                Saved in Lakebase with relational facility rows and transactional writes.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="scenario-name">Scenario name</Label>
-                <Input
-                  id="scenario-name"
-                  placeholder="e.g. Sikkim cardiac expansion"
-                  value={scenarioName}
-                  onChange={(e) => setScenarioName(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="scenario-description">Description (optional)</Label>
-                <Textarea
-                  id="scenario-description"
-                  placeholder="Planning notes for this scenario"
-                  value={scenarioDescription}
-                  onChange={(e) => setScenarioDescription(e.target.value)}
-                  rows={2}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="saved-scenario">Load saved scenario</Label>
-                {savedLoading ? (
-                  <Skeleton className="h-10 w-full" />
-                ) : (
-                  <Select
-                    value={activeScenarioId ? String(activeScenarioId) : ''}
-                    onValueChange={(value) => {
-                      if (value) void loadScenario(Number.parseInt(value, 10));
-                    }}
-                  >
-                    <SelectTrigger id="saved-scenario" className="w-full">
-                      <SelectValue placeholder="Choose from Lakebase…" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-72">
-                      {savedScenarios.map((s) => (
-                        <SelectItem key={s.id} value={String(s.id)}>
-                          {s.name} ({s.facility_count} facilities)
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-
-              <div className="flex gap-2">
-                <Button className="flex-1" disabled={!canSave} onClick={() => void saveScenario()}>
-                  {saving ? 'Saving…' : activeScenarioId ? 'Update in Lakebase' : 'Save to Lakebase'}
-                </Button>
-                <Button variant="outline" onClick={resetBuilder}>
-                  New
-                </Button>
-              </div>
-
-              {lakebaseError && (
-                <div className="text-destructive text-sm bg-destructive/10 p-2 rounded-md">
-                  {lakebaseError}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="shadow-sm border-border/60">
-            <CardHeader>
-              <CardTitle>Add facility</CardTitle>
+              <CardTitle>New facility</CardTitle>
               <CardDescription>Add one or more proposed facilities to this scenario.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -394,6 +370,77 @@ export function ScenarioPage() {
               </Button>
             </CardContent>
           </Card>
+
+          <Card className="shadow-sm border-border/60">
+            <CardHeader>
+              <CardTitle>Scenario workspace</CardTitle>
+              <CardDescription>
+                Saved in Lakebase with relational facility rows and transactional writes.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="scenario-name">Scenario name</Label>
+                <Input
+                  id="scenario-name"
+                  placeholder="e.g. Sikkim cardiac expansion"
+                  value={scenarioName}
+                  onChange={(e) => setScenarioName(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="scenario-description">Description (optional)</Label>
+                <Textarea
+                  id="scenario-description"
+                  placeholder="Planning notes for this scenario"
+                  value={scenarioDescription}
+                  onChange={(e) => setScenarioDescription(e.target.value)}
+                  rows={2}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="saved-scenario">Load saved scenario</Label>
+                {savedLoading ? (
+                  <Skeleton className="h-10 w-full" />
+                ) : (
+                  <Select
+                    value={activeScenarioId ? String(activeScenarioId) : ''}
+                    onValueChange={(value) => {
+                      if (value) void loadScenario(Number.parseInt(value, 10));
+                    }}
+                  >
+                    <SelectTrigger id="saved-scenario" className="w-full">
+                      <SelectValue placeholder="Choose from Lakebase…" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-72">
+                      {savedScenarios.map((s) => (
+                        <SelectItem key={s.id} value={String(s.id)}>
+                          {s.name} ({s.facility_count} facilities)
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+
+              <div className="flex gap-2">
+                <Button className="flex-1" disabled={!canSave} onClick={() => void saveScenario()}>
+                  {saving ? 'Saving…' : activeScenarioId ? 'Update in Lakebase' : 'Save to Lakebase'}
+                </Button>
+                <Button variant="outline" onClick={resetBuilder}>
+                  New
+                </Button>
+              </div>
+
+              {lakebaseError && (
+                <div className="text-destructive text-sm bg-destructive/10 p-2 rounded-md">
+                  {lakebaseError}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         <div className="space-y-6 xl:col-span-2">
@@ -461,13 +508,14 @@ export function ScenarioPage() {
 
           <HypertensionGapSection
             facilitiesJson={scenarioFacilitiesJson}
+            specialtyCategory={specialtyCategory}
             enabled={analysisEnabled}
             scenarioMode
             placeholder={
               <p className="text-sm text-muted-foreground">
-                Add facilities and run analysis to see hypertension demand vs. cardiac supply
-                metrics, heat map, and top desert districts — with your proposed facilities
-                included in supply counts.
+                Add facilities and run analysis to see specialty demand vs. supply metrics, heat
+                map, and top desert districts — with your proposed facilities included in supply
+                counts.
               </p>
             }
           />

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
+import { Link } from 'react-router';
 import ReactECharts from 'echarts-for-react';
 import * as echarts from 'echarts';
 import { sql } from '@databricks/appkit-ui/js';
@@ -27,7 +28,8 @@ import {
   normalizeRiskScore,
 } from './desertRisk';
 import { districtRegionKey, parseRegionKeyDisplay, prepareDistrictGeoJson, type GeoJsonCollection } from './districtMatching';
-import { DEFAULT_ANALYTICS_SPECIALTY } from './analyticsConstants';
+import { DEFAULT_ANALYTICS_SPECIALTY, isAllSpecialtyCategories, specialtyCategoryLabel } from './analyticsConstants';
+import type { DistrictSelection } from '../../lib/scenario-navigation';
 
 const INDIA_GEOJSON_PATH = '/geo/india-districts.geojson';
 
@@ -68,19 +70,7 @@ type ConfidenceLevel = 'high' | 'medium' | 'low';
 const ALL_CONFIDENCE_LEVELS: ConfidenceLevel[] = ['high', 'medium', 'low'];
 
 const TOP_N_DISTRICTS = 25;
-
-const CATEGORY_LABELS: Record<string, string> = {
-  primary_care: 'Primary Care',
-  cardiology: 'Cardiology',
-  oncology: 'Oncology',
-  endocrinology: 'Endocrinology',
-  nutrition: 'Nutrition',
-  neurology: 'Neurology',
-  nephrology: 'Nephrology',
-  pulmonology: 'Pulmonology',
-  obgyn: "Women's Health (OB/GYN)",
-  pediatrics: 'Pediatrics',
-};
+const TOP_RANKED_NEEDS = 10;
 
 type DemandRankRow = {
   district_name: string;
@@ -121,10 +111,7 @@ function districtKey(districtName: string, stateUt: string): string {
 }
 
 function formatCategoryLabel(category: string): string {
-  return CATEGORY_LABELS[category] ?? category
-    .split('_')
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
+  return category;
 }
 
 function formatRankedDemandNeeds(categories: DistrictDemandCategory[]): string {
@@ -133,6 +120,7 @@ function formatRankedDemandNeeds(categories: DistrictDemandCategory[]): string {
   }
 
   const rows = categories
+    .slice(0, TOP_RANKED_NEEDS)
     .map((item) => {
       const label = formatCategoryLabel(item.category);
       return [
@@ -164,7 +152,7 @@ function formatRankedDemandNeeds(categories: DistrictDemandCategory[]): string {
 
 function formatDistrictTooltip(info: DistrictTooltipInfo, riskRange: { min: number; max: number }): string {
   const rankedNeeds = formatRankedDemandNeeds(info.ranked_needs);
-  const hasCardiacMetrics =
+  const hasCategoryMetrics =
     info.desert_risk_score !== undefined &&
     info.demand_pct !== undefined &&
     info.confidence_score !== undefined;
@@ -175,7 +163,7 @@ function formatDistrictTooltip(info: DistrictTooltipInfo, riskRange: { min: numb
     rankedNeeds,
   ];
 
-  if (hasCardiacMetrics) {
+  if (hasCategoryMetrics) {
     const tier = desertRiskTierFromScore(info.desert_risk_score!, riskRange.min, riskRange.max);
     sections.push(
       '<div style="margin-top:8px;padding-top:8px;border-top:1px solid #e5e7eb;color:#374151;font-size:11px;line-height:1.6">',
@@ -307,6 +295,22 @@ function confidenceBucket(score: number): ConfidenceLevel {
   return 'low';
 }
 
+/** Symmetric visualMap span so the largest |Δ| in the scenario saturates the palette. */
+function computeDeltaColorExtent(deltas: number[]): { min: number; max: number } {
+  const magnitudes = deltas.map(Math.abs).filter((d) => d > 1e-9);
+  if (magnitudes.length === 0) {
+    return { min: -0.01, max: 0.01 };
+  }
+  const peak = Math.max(...magnitudes);
+  // Scale to ~85% of peak so the biggest change hits full green/red, not pale tints.
+  const span = Math.max(peak * 0.85, 0.001);
+  return { min: -span, max: span };
+}
+
+const DELTA_MAP_COLORS = ['#006837', '#41ab5d', '#d9d9d9', '#f03b20', '#990000'];
+const RISK_MAP_COLORS = ['#1a9850', '#91cf60', '#d9ef8b', '#fee08b', '#fc8d59', '#d73027'];
+const NO_DATA_MAP_COLOR = '#e8e4dc';
+
 
 type MapViewMode = 'delta' | 'baseline' | 'scenario';
 
@@ -316,6 +320,8 @@ type SupplyDemandHeatMapProps = {
   enabled?: boolean;
   /** When true, fetch baseline and show baseline / scenario / change views. */
   compareMode?: boolean;
+  /** Analytics only: click a district to open scenario builder. */
+  onDistrictClick?: (district: DistrictSelection) => void;
 };
 
 export function SupplyDemandHeatMap({
@@ -323,7 +329,11 @@ export function SupplyDemandHeatMap({
   specialtyCategory = DEFAULT_ANALYTICS_SPECIALTY,
   enabled = true,
   compareMode = false,
+  onDistrictClick,
 }: SupplyDemandHeatMapProps) {
+  const categoryLabel = specialtyCategoryLabel(specialtyCategory);
+  const isAllCategories = isAllSpecialtyCategories(specialtyCategory);
+
   const baselineParams = useMemo(
     () => ({
       facilities_json: sql.string('[]'),
@@ -422,6 +432,31 @@ export function SupplyDemandHeatMap({
     return map;
   }, [scenarioRows]);
 
+  const districtByRegionKey = useMemo(() => {
+    const map = new Map<string, DistrictSelection>();
+    for (const row of allRows) {
+      map.set(districtKey(row.district_name, row.state_ut), {
+        district_name: row.district_name,
+        state_ut: row.state_ut,
+      });
+    }
+    return map;
+  }, [allRows]);
+
+  const handleMapClick = useCallback(
+    (params: { name?: string }) => {
+      if (!onDistrictClick || !params.name) return;
+      const district = districtByRegionKey.get(params.name);
+      if (district) onDistrictClick(district);
+    },
+    [districtByRegionKey, onDistrictClick],
+  );
+
+  const chartEvents = useMemo(
+    () => (onDistrictClick ? { click: handleMapClick } : undefined),
+    [handleMapClick, onDistrictClick],
+  );
+
   const filteredRows = useMemo(
     () =>
       (mapView === 'delta' && compareMode ? scenarioRows : allRows).filter((row) => {
@@ -504,20 +539,27 @@ export function SupplyDemandHeatMap({
       };
     });
 
+    const deltaExtent = isDeltaView
+      ? computeDeltaColorExtent(mapData.map((point) => point.value))
+      : null;
+
     const visualMap = isDeltaView
       ? {
           show: true,
           type: 'continuous' as const,
-          min: -0.3,
-          max: 0.3,
-          precision: 2,
+          min: deltaExtent!.min,
+          max: deltaExtent!.max,
+          precision: 3,
           calculable: true,
           orient: 'vertical' as const,
           right: 16,
           top: 'center',
           text: ['Worse', 'Improved'],
           inRange: {
-            color: ['#1a9850', '#d9ef8b', '#f5f3ef', '#fc8d59', '#d73027'],
+            color: DELTA_MAP_COLORS,
+          },
+          outOfRange: {
+            color: NO_DATA_MAP_COLOR,
           },
         }
       : {
@@ -532,7 +574,10 @@ export function SupplyDemandHeatMap({
           top: 'center',
           text: ['High Risk', 'Low Risk'],
           inRange: {
-            color: ['#1a9850', '#91cf60', '#d9ef8b', '#fee08b', '#fc8d59', '#d73027'],
+            color: RISK_MAP_COLORS,
+          },
+          outOfRange: {
+            color: NO_DATA_MAP_COLOR,
           },
         };
 
@@ -580,12 +625,12 @@ export function SupplyDemandHeatMap({
           type: 'map',
           map: 'india_districts',
           roam: true,
+          cursor: onDistrictClick ? 'pointer' : 'default',
           scaleLimit: { min: 1, max: 8 },
           layoutCenter: ['50%', '50%'],
           layoutSize: '85%',
           label: { show: false },
           itemStyle: {
-            areaColor: '#f5f3ef',
             borderColor: '#c4bdb4',
             borderWidth: 0.6,
           },
@@ -608,6 +653,7 @@ export function SupplyDemandHeatMap({
     filteredRows,
     mapReady,
     mapView,
+    onDistrictClick,
     riskRange,
     scenarioByKey,
     tooltipByRegion,
@@ -670,24 +716,32 @@ export function SupplyDemandHeatMap({
         )}
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
           <Label className="text-sm font-medium shrink-0 sm:w-36">Data confidence</Label>
-          <ToggleGroup
-            type="multiple"
-            variant="outline"
-            size="sm"
-            value={selectedLevels}
-            onValueChange={(value) => setSelectedLevels(value as ConfidenceLevel[])}
-            className="flex-1 justify-start"
-          >
-            <ToggleGroupItem value="high" aria-label="High confidence">
-              High
-            </ToggleGroupItem>
-            <ToggleGroupItem value="medium" aria-label="Medium confidence">
-              Medium
-            </ToggleGroupItem>
-            <ToggleGroupItem value="low" aria-label="Low confidence">
-              Low
-            </ToggleGroupItem>
-          </ToggleGroup>
+          <div className="flex flex-1 flex-wrap items-center gap-3">
+            <ToggleGroup
+              type="multiple"
+              variant="outline"
+              size="sm"
+              value={selectedLevels}
+              onValueChange={(value) => setSelectedLevels(value as ConfidenceLevel[])}
+              className="justify-start"
+            >
+              <ToggleGroupItem value="high" aria-label="High confidence">
+                High
+              </ToggleGroupItem>
+              <ToggleGroupItem value="medium" aria-label="Medium confidence">
+                Medium
+              </ToggleGroupItem>
+              <ToggleGroupItem value="low" aria-label="Low confidence">
+                Low
+              </ToggleGroupItem>
+            </ToggleGroup>
+            <Link
+              to="/data-quality"
+              className="text-sm text-primary underline-offset-4 hover:underline"
+            >
+              Improve Data Quality
+            </Link>
+          </div>
         </div>
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
           <Label className="text-sm font-medium shrink-0 sm:w-36">Top 25 Districts</Label>
@@ -744,19 +798,19 @@ export function SupplyDemandHeatMap({
             <>
               {' '}
               {mapView === 'delta'
-                ? 'Green = lower desert risk vs baseline; red = higher risk; gray = no change.'
+                ? 'Change view scales colors to the largest risk shift in this scenario (green = improved, red = worse, gray = no change).'
                 : mapView === 'baseline'
-                  ? 'Baseline cardiac desert risk before proposed facilities.'
-                  : 'Scenario desert risk after proposed facilities are added to supply.'}
+                  ? `Baseline ${categoryLabel} desert risk before proposed facilities.`
+                  : `Scenario desert risk after proposed ${isAllCategories ? 'mapped' : categoryLabel} facilities are added to supply.`}
               {' '}
-              Hover any district for baseline vs scenario cardiac counts and risk deltas.
+              Hover any district for baseline vs scenario facility counts and risk deltas.
             </>
           ) : (
             <>
               {' '}
-              Each district is shaded by relative cardiac desert risk (hypertension demand × lack
-              of cardiac supply). Hover any district to see all 10 ranked health needs from NFHS
-              demand categories.
+              Each district is shaded by relative {categoryLabel} desert risk (demand × lack of
+              supply). Hover any district to see ranked NFHS demand categories for that district.
+              {onDistrictClick && ' Click a district to model a new facility in Scenario.'}
             </>
           )}
         </p>
@@ -767,13 +821,22 @@ export function SupplyDemandHeatMap({
           No districts match the selected confidence levels — select a level above to see data.
         </div>
       ) : (
-        option && <ReactECharts option={option} style={{ height: 620, width: '100%' }} notMerge />
+        option && (
+          <ReactECharts
+            option={option}
+            style={{ height: 620, width: '100%' }}
+            notMerge
+            onEvents={chartEvents}
+          />
+        )
       )}
 
       <p className="text-xs text-muted-foreground text-center">
         {compareMode && mapView === 'delta'
-          ? 'Change view: district color reflects scenario minus baseline desert risk (negative = improvement).'
-          : 'District color: red = high cardiac desert risk (high hypertension + low cardiac supply), yellow = moderate, green = low risk.'}
+          ? 'Change view: saturated green/red scaled to the largest Δ in this scenario; gray = unchanged districts.'
+          : `District color: red = high ${categoryLabel} desert risk, yellow = moderate, green = low risk.${
+              onDistrictClick ? ' Click a district to open Scenario.' : ''
+            }`}
       </p>
     </div>
   );

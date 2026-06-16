@@ -4,7 +4,8 @@
 WITH category_specialties AS (
   SELECT DISTINCT TRIM(specialties) AS specialty
   FROM dais_2026.hackathon.specialty_category_mapping
-  WHERE CAST(category AS STRING) = :specialty_category
+  WHERE :specialty_category = 'ALL'
+     OR CAST(category AS STRING) = :specialty_category
 ),
 scenario_facilities AS (
   SELECT
@@ -54,9 +55,15 @@ district_demand AS (
     UPPER(TRIM(hi.state_ut)) AS state_key,
     ROUND(AVG(hi.indicator_value), 2) AS demand_pct
   FROM dais_2026.hackathon.health_indicator hi
-  INNER JOIN dais_2026.hackathon.health_indicator_specialty his
-    ON hi.indicator_key = his.indicator_key
-  WHERE his.specialty_category = :specialty_category
+  WHERE EXISTS (
+      SELECT 1
+      FROM dais_2026.hackathon.health_indicator_specialty his
+      WHERE his.indicator_key = hi.indicator_key
+        AND (
+          :specialty_category = 'ALL'
+          OR his.specialty_category = :specialty_category
+        )
+    )
     AND NOT COALESCE(hi.is_suppressed, false)
     AND hi.indicator_key NOT IN (
       'households_surveyed',
@@ -77,7 +84,10 @@ district_supply_base AS (
     ON f.facility_id = fs.facility_id
   LEFT JOIN dais_2026.hackathon.specialty_category_mapping m
     ON fs.specialty = m.specialties
-   AND CAST(m.category AS STRING) = :specialty_category
+   AND (
+     :specialty_category = 'ALL'
+     OR CAST(m.category AS STRING) = :specialty_category
+   )
   WHERE f.district_name IS NOT NULL
     AND TRIM(f.district_name) != ''
     AND f.state_ut IS NOT NULL

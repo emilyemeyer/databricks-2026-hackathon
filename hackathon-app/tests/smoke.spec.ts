@@ -22,7 +22,7 @@ const PLUGIN_PAGES: Record<string, PluginPage> = {
   analytics: {
     navLabel: 'Analytics',
     path: '/analytics',
-    expectedTexts: ['Hypertension Demand vs. Cardiac Supply', 'Supply vs. Demand by District'],
+    expectedTexts: ['All categories', 'Demand vs. Supply', 'Specialty category'],
   },
   scenario: {
     navLabel: 'Scenario',
@@ -58,10 +58,8 @@ let failedRequests: string[] = [];
 test('smoke test - app loads and displays home page', async ({ page }) => {
   await page.goto('/');
 
-  await expect(page.getByRole('heading', { name: 'Virtue Foundation Explorer' })).toBeVisible();
-  await expect(
-    page.getByRole('heading', { name: 'Virtue Foundation Healthcare Explorer' }),
-  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Care Compass', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Care Compass', level: 2 })).toBeVisible();
 
   await expect(page.getByRole('link', { name: 'Home' })).toBeVisible();
   for (const [, plugin] of enabledPages) {

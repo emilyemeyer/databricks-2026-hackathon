@@ -23,7 +23,8 @@ import {
   normalizeRiskScore,
 } from './desertRisk';
 import { CompareMetricCard } from './scenarioCompare';
-import { DEFAULT_ANALYTICS_SPECIALTY } from './analyticsConstants';
+import { DEFAULT_ANALYTICS_SPECIALTY, isAllSpecialtyCategories, specialtyCategoryLabel } from './analyticsConstants';
+import type { DistrictSelection } from '../../lib/scenario-navigation';
 
 function confidenceLabel(score: number): string {
   if (score >= 0.75) return 'High';
@@ -78,18 +79,22 @@ function DesertRiskCell({
 function RiskCategoryBadge({
   demand,
   supply,
-  cardiacFacilities,
+  categoryFacilities,
+  specialtyCategory,
   riskRange,
 }: {
   demand: number;
   supply: number;
-  cardiacFacilities: number;
+  categoryFacilities: number;
+  specialtyCategory: string;
   riskRange: { min: number; max: number };
 }) {
-  if (cardiacFacilities === 0) {
+  if (categoryFacilities === 0) {
     return (
       <span className="inline-flex rounded-full px-2 py-0.5 text-xs font-medium bg-destructive/15 text-destructive">
-        No Cardiac Care
+        {isAllSpecialtyCategories(specialtyCategory)
+          ? 'No mapped supply'
+          : `No ${specialtyCategory} supply`}
       </span>
     );
   }
@@ -122,21 +127,27 @@ type GapTableRow = {
 function GapDistrictTable({
   title,
   description,
+  specialtyCategory,
+  facilitiesLabel,
   rows,
   baselineRows,
   loading,
   rankColumn,
   riskRange,
   compareMode = false,
+  onDistrictClick,
 }: {
   title: string;
   description: string;
+  specialtyCategory: string;
+  facilitiesLabel: string;
   rows: GapTableRow[] | undefined;
   baselineRows?: GapTableRow[];
   loading: boolean;
   rankColumn: 'gap' | 'desert';
   riskRange: { min: number; max: number };
   compareMode?: boolean;
+  onDistrictClick?: (district: DistrictSelection) => void;
 }) {
   const baselineByKey = useMemo(() => {
     const map = new Map<string, GapTableRow>();
@@ -152,7 +163,15 @@ function GapDistrictTable({
     <Card className="shadow-sm border-border/60">
       <CardHeader>
         <CardTitle>{title}</CardTitle>
-        <p className="text-sm text-muted-foreground mt-1">{description}</p>
+        <p className="text-sm text-muted-foreground mt-1">
+          {description}
+          {onDistrictClick && (
+            <span className="block mt-1 text-xs">
+              Click a district to open Scenario with state and district pre-filled in the new facility
+              form.
+            </span>
+          )}
+        </p>
       </CardHeader>
       <CardContent className="overflow-x-auto">
         {loading && <Skeleton className="h-48 w-full" />}
@@ -163,11 +182,11 @@ function GapDistrictTable({
                 <TableHead>District</TableHead>
                 <TableHead>State</TableHead>
                 <TableHead className="text-right">Demand %</TableHead>
-                <TableHead className="text-right">Category Facilities</TableHead>
+                <TableHead className="text-right">{facilitiesLabel}</TableHead>
                 {compareMode && <TableHead className="text-right">Δ Facilities</TableHead>}
                 <TableHead>Demand vs Supply</TableHead>
                 <TableHead className="text-right">Data Confidence</TableHead>
-                <TableHead className={headClass('desert')}>Cardiac Desert Risk</TableHead>
+                <TableHead className={headClass('desert')}>Desert risk</TableHead>
                 <TableHead>Risk Category</TableHead>
               </TableRow>
             </TableHeader>
@@ -190,8 +209,28 @@ function GapDistrictTable({
                   baselineRisk != null ? scenarioRisk - baselineRisk : 0;
 
                 return (
-                <TableRow key={`${row.district_name}-${row.state_ut}`}>
-                  <TableCell className="font-medium">{row.district_name}</TableCell>
+                <TableRow
+                  key={`${row.district_name}-${row.state_ut}`}
+                  className={onDistrictClick ? 'cursor-pointer hover:bg-muted/50' : undefined}
+                  onClick={
+                    onDistrictClick
+                      ? () =>
+                          onDistrictClick({
+                            district_name: row.district_name,
+                            state_ut: row.state_ut,
+                          })
+                      : undefined
+                  }
+                >
+                  <TableCell className="font-medium">
+                    {onDistrictClick ? (
+                      <span className="text-primary underline-offset-2 hover:underline">
+                        {row.district_name}
+                      </span>
+                    ) : (
+                      row.district_name
+                    )}
+                  </TableCell>
                   <TableCell>{row.state_ut}</TableCell>
                   <TableCell className="text-right">
                     {Number(row.demand_pct).toFixed(1)}%
@@ -253,7 +292,8 @@ function GapDistrictTable({
                     <RiskCategoryBadge
                       demand={Number(row.demand_score)}
                       supply={Number(row.supply_score)}
-                      cardiacFacilities={Number(row.category_facilities)}
+                      categoryFacilities={Number(row.category_facilities)}
+                      specialtyCategory={specialtyCategory}
                       riskRange={riskRange}
                     />
                   </TableCell>
@@ -277,6 +317,8 @@ export type HypertensionGapSectionProps = {
   /** Adjust copy for scenario analysis context. */
   scenarioMode?: boolean;
   placeholder?: ReactNode;
+  /** When set (analytics page), district clicks navigate to scenario builder. */
+  onDistrictClick?: (district: DistrictSelection) => void;
 };
 
 export function HypertensionGapSection({
@@ -285,7 +327,12 @@ export function HypertensionGapSection({
   enabled = true,
   scenarioMode = false,
   placeholder,
+  onDistrictClick,
 }: HypertensionGapSectionProps) {
+  const categoryLabel = specialtyCategoryLabel(specialtyCategory);
+  const isAllCategories = isAllSpecialtyCategories(specialtyCategory);
+  const facilitiesLabel = isAllCategories ? 'Mapped specialty facilities' : `${categoryLabel} facilities`;
+
   const queryParams = useMemo(
     () => ({
       facilities_json: sql.string(facilitiesJson),
@@ -417,7 +464,7 @@ export function HypertensionGapSection({
       <div className="space-y-6">
         {placeholder ?? (
           <p className="text-sm text-muted-foreground">
-            Add facilities and run analysis to see hypertension demand vs. cardiac supply metrics.
+            Add facilities and run analysis to see specialty demand vs. supply metrics.
           </p>
         )}
       </div>
@@ -428,21 +475,33 @@ export function HypertensionGapSection({
     <div className="space-y-6">
       <div>
         <h3 className="text-xl font-semibold text-foreground">
-          Hypertension Demand vs. Cardiac Supply
+          {categoryLabel} — Demand vs. Supply
           {scenarioMode && (
             <span className="ml-2 text-sm font-normal text-primary">(scenario)</span>
           )}
         </h3>
         <p className="text-sm text-muted-foreground mt-2 max-w-3xl">
-          Compares NFHS-5 women&apos;s hypertension prevalence (demand) with cardiac-specialty
-          facility counts (supply) at the district level. A high cardiac desert risk means
-          relatively high hypertension burden combined with low cardiac supply.
+          {isAllCategories ? (
+            <>
+              Compares aggregate NFHS district health demand (all mapped indicators) with facilities
+              that have any mapped specialty (supply). Desert risk highlights districts where overall
+              mapped demand is high relative to mapped supply.
+            </>
+          ) : (
+            <>
+              Compares NFHS-5 district health indicators mapped to{' '}
+              <strong>{categoryLabel}</strong> via{' '}
+              <code className="text-xs">health_indicator_specialty</code> (demand) with facility
+              counts whose specialties map to the same category (supply). A high desert risk means
+              relatively high category demand combined with low category supply.
+            </>
+          )}
           {scenarioMode && (
             <>
               {' '}
               Results compare baseline (current supply) with your scenario (baseline plus proposed
-              facilities). Cardiac supply increases when capability matches cardio, cardiac, heart,
-              or cardiology.
+              facilities). Category supply increases when proposed capability matches a specialty in{' '}
+              <code className="text-xs">specialty_category_mapping</code> for this category.
             </>
           )}
         </p>
@@ -452,7 +511,7 @@ export function HypertensionGapSection({
         {scenarioMode ? (
           <>
             <CompareMetricCard
-              title="Total Cardiac-Capable Facilities"
+              title={isAllCategories ? 'Total mapped specialty facilities' : `Total ${categoryLabel} facilities`}
               loading={geoLoading}
               baseline={
                 baselineGeoStats.totalCardiac != null
@@ -469,7 +528,7 @@ export function HypertensionGapSection({
               }
             />
             <CompareMetricCard
-              title="Zero Cardiac Supply Districts"
+              title={isAllCategories ? 'Zero mapped supply districts' : `Zero ${categoryLabel} supply districts`}
               loading={summaryLoading || baselineSummaryLoading}
               baseline={baselineSummaryRow?.districts_with_zero_category_supply ?? '—'}
               scenario={summaryRow?.districts_with_zero_category_supply ?? '—'}
@@ -557,7 +616,7 @@ export function HypertensionGapSection({
               </CardContent>
             </Card>
             <CompareMetricCard
-              title="Median Hypertension %"
+              title="Median demand %"
               loading={summaryLoading || baselineSummaryLoading}
               baseline={
                 baselineSummaryRow?.median_demand_pct != null
@@ -607,7 +666,9 @@ export function HypertensionGapSection({
         </Card>
         <Card className="shadow-sm border-border/60">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Total Cardiac-Capable Facilities</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              {isAllCategories ? 'Total mapped specialty facilities' : `Total ${categoryLabel} facilities`}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {geoLoading ? <Skeleton className="h-8 w-16" /> : (
@@ -621,7 +682,7 @@ export function HypertensionGapSection({
         </Card>
         <Card className="shadow-sm border-border/60">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Median Hypertension %</CardTitle>
+            <CardTitle className="text-sm font-medium">Median demand %</CardTitle>
           </CardHeader>
           <CardContent>
             {summaryLoading ? <Skeleton className="h-8 w-16" /> : (
@@ -635,7 +696,7 @@ export function HypertensionGapSection({
         </Card>
         <Card className="shadow-sm border-border/60">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Zero Cardiac Supply</CardTitle>
+            <CardTitle className="text-sm font-medium">Zero category supply</CardTitle>
           </CardHeader>
           <CardContent>
             {summaryLoading ? <Skeleton className="h-8 w-16" /> : (
@@ -698,7 +759,9 @@ export function HypertensionGapSection({
       <Card className="shadow-sm border-border/60">
         <CardHeader>
           <CardTitle>
-            {scenarioMode ? 'Cardiac Desert Risk — Baseline vs Scenario' : 'Cardiac Desert Risk Heat Map'}
+            {scenarioMode
+              ? `${categoryLabel} desert risk — baseline vs scenario`
+              : `${categoryLabel} desert risk heat map`}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -707,23 +770,29 @@ export function HypertensionGapSection({
             specialtyCategory={specialtyCategory}
             enabled={enabled}
             compareMode={scenarioMode}
+            onDistrictClick={onDistrictClick}
           />
         </CardContent>
       </Card>
 
       <GapDistrictTable
-        title="Top 25 Cardiac Desert Districts"
+        title={isAllCategories ? 'Top 25 desert districts (all categories)' : `Top 25 ${categoryLabel} desert districts`}
         description={
           scenarioMode
-            ? 'Scenario rankings with baseline → scenario cardiac counts and risk deltas. Negative risk Δ means improved supply vs. demand balance.'
-            : 'Ranked by cardiac desert risk (hypertension demand × lack of cardiac supply). Highlights where burden is high and cardiac care is scarce.'
+            ? 'Scenario rankings with baseline → scenario facility counts and risk deltas. Negative risk Δ means improved supply vs. demand balance.'
+            : isAllCategories
+              ? 'Ranked by aggregate desert risk across all mapped demand and supply. Highlights districts with high overall burden and scarce mapped facilities.'
+              : `Ranked by desert risk (category demand × lack of ${categoryLabel} supply). Highlights districts where burden is high and category supply is scarce.`
         }
+        specialtyCategory={specialtyCategory}
+        facilitiesLabel={facilitiesLabel}
         rows={tableRows as GapTableRow[] | undefined}
         baselineRows={scenarioMode ? (baselineTableRows as GapTableRow[] | undefined) : undefined}
         loading={tableLoading || (scenarioMode && baselineTableLoading)}
         rankColumn="desert"
         riskRange={riskRange}
         compareMode={scenarioMode}
+        onDistrictClick={onDistrictClick}
       />
 
       <Card className="shadow-sm border-border/60 bg-muted/30">
@@ -751,23 +820,41 @@ export function HypertensionGapSection({
             <p className="font-medium text-foreground">How to read supply &amp; demand</p>
             <ul className="list-disc pl-5 space-y-1">
               <li>
-                <span className="font-medium">Demand</span> is the NFHS-5 share of women aged 15+
-                with high blood pressure (systolic ≥140 and/or diastolic ≥90 mmHg). It is a survey
-                prevalence rate — not a patient count, not population-weighted, and it does not
-                include men or measure actual cardiac events.
+                <span className="font-medium">Demand</span>{' '}
+                {isAllCategories ? (
+                  <>
+                    averages all NFHS-5 indicator values with any{' '}
+                    <code className="text-xs">health_indicator_specialty</code> mapping. Values are
+                    survey prevalence or coverage rates — not patient counts.
+                  </>
+                ) : (
+                  <>
+                    averages NFHS-5 indicator values mapped to <strong>{categoryLabel}</strong> in{' '}
+                    <code className="text-xs">health_indicator_specialty</code>. Values are survey
+                    prevalence or coverage rates — not patient counts or population-weighted burden.
+                  </>
+                )}
               </li>
               <li>
-                <span className="font-medium">Supply</span> counts cardiac-capable facilities per
-                district (1 per matching facility), then normalizes against the best-supplied
-                district nationally. It does not reflect the number of beds, cardiologists,
-                catheterization labs, operating capacity, patient throughput, or quality of care —
-                a single small clinic and a large hospital each count as 1.
+                <span className="font-medium">Supply</span>{' '}
+                {isAllCategories ? (
+                  <>
+                    counts distinct facilities per district with at least one specialty in{' '}
+                    <code className="text-xs">specialty_category_mapping</code>, then normalizes
+                    nationally. Each matching facility counts as 1.
+                  </>
+                ) : (
+                  <>
+                    counts distinct facilities per district with at least one specialty mapped to{' '}
+                    <strong>{categoryLabel}</strong>, then normalizes against the best-supplied
+                    district nationally. Each matching facility counts as 1.
+                  </>
+                )}
               </li>
             </ul>
             <p>
-              Caveats: facility data is incomplete and urban-skewed; district name mismatches
-              remain; specialty filters use JSON substring matching; hypertension is a prevalence
-              proxy, not stroke incidence.
+              Caveats: facility data is incomplete and urban-skewed; district name mismatches may
+              remain; unmapped indicators or specialties reduce coverage for some categories.
             </p>
           </div>
         </CardContent>
