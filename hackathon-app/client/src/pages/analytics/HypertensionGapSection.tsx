@@ -81,14 +81,12 @@ function DesertRiskCell({
 function RiskCategoryBadge({
   demand,
   supply,
-  categoryFacilities,
   categoryBedCapacity,
   specialtyCategory,
   riskRange,
 }: {
   demand: number;
   supply: number;
-  categoryFacilities: number;
   categoryBedCapacity: number;
   specialtyCategory: string;
   riskRange: { min: number; max: number };
@@ -296,7 +294,6 @@ function GapDistrictTable({
                     <RiskCategoryBadge
                       demand={Number(row.demand_score)}
                       supply={Number(row.supply_score)}
-                      categoryFacilities={Number(row.category_facilities)}
                       categoryBedCapacity={rowBeds}
                       specialtyCategory={specialtyCategory}
                       riskRange={riskRange}

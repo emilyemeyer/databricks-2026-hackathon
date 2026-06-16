@@ -30,7 +30,7 @@ async function waitForStatement(
 ): Promise<StatementResponse> {
   const started = Date.now();
   while (Date.now() - started < MAX_POLL_MS) {
-    const response = await client.statementExecution.getStatement(statementId);
+    const response = await client.statementExecution.getStatement({ statement_id: statementId });
     const state = response.status?.state;
     if (state === 'SUCCEEDED') {
       return response;
