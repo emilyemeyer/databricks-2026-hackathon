@@ -1,4 +1,4 @@
-import { cleanSpecialtyMarkup } from '@shared/specialty-clean';
+import { cleanSpecialtyMarkup } from '../../../shared/specialty-clean';
 
 /** Coerce warehouse / JSON values to safe React-renderable strings (no specialty cleanup). */
 export function toRawString(value: unknown): string {

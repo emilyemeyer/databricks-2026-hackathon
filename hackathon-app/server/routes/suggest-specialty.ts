@@ -148,7 +148,7 @@ FROM (
 
   const rows = await runSql(`
 SELECT ai_query(
-  'databricks-claude-sonnet-4-6',
+  'databricks-claude-opus-4-8',
   '${escapeSqlString(prompt)}',
   failOnError => false
 ) AS ai_response

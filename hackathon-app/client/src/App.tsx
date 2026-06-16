@@ -94,9 +94,6 @@ const router = createBrowserRouter([
       { path: '/scenario', element: <ScenarioPage /> },
       { path: '/mappings', element: <Navigate to="/data-quality" replace /> },
       { path: '/data-quality', element: <DataQualityPage /> },
-      { path: '/lakebase', element: <Navigate to="/scenario" replace /> },
-      { path: '/genie', element: <Navigate to="/" replace /> },
-      { path: '/serving', element: <Navigate to="/" replace /> },
     ],
   },
 ]);

@@ -25,9 +25,9 @@ async function runSqlStatement(statement: string): Promise<void> {
   }
 }
 
-function loadDqRefreshStatements(): string[] {
+function loadSqlStatements(fileName: string): string[] {
   const moduleDir = dirname(fileURLToPath(import.meta.url));
-  const sqlPath = join(moduleDir, '../sql/refresh_dq_snapshot.sql');
+  const sqlPath = join(moduleDir, '../sql', fileName);
   const sql = readFileSync(sqlPath, 'utf-8').replace(/\$\{TARGET\}/g, SCHEMA);
   const withoutComments = sql
     .split('\n')
@@ -38,6 +38,12 @@ function loadDqRefreshStatements(): string[] {
     .split(';')
     .map((part: string) => part.trim())
     .filter((part: string) => part.length > 0);
+}
+
+function loadDqRefreshStatements(): string[] {
+  return loadSqlStatements('seed_demo_dirty_data.sql').concat(
+    loadSqlStatements('refresh_dq_snapshot.sql'),
+  );
 }
 
 let refreshInFlight: Promise<void> | null = null;
