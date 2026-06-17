@@ -465,6 +465,30 @@ health_indicator = frames[0]
 for frame in frames[1:]:
     health_indicator = health_indicator.unionByName(frame)
 
+for col_name in ("households_surveyed", "women_15_49_interviewed", "men_15_54_interviewed"):
+    dtype = dict(nfhs_base.dtypes)[col_name]
+    raw_col = F.col(f"`{col_name}`")
+    if dtype == "string":
+        value_expr = F.when(F.trim(raw_col) == "*", F.lit(None).cast("double")).otherwise(
+            F.expr(f"try_cast(regexp_replace(trim(`{col_name}`), '[()]', '') as double)")
+        )
+        suppressed_expr = F.trim(raw_col) == "*"
+    else:
+        value_expr = raw_col.cast("double")
+        suppressed_expr = F.lit(False)
+
+    health_indicator = health_indicator.unionByName(
+        nfhs_base.select(
+            F.col("district_id"),
+            F.col("district_name"),
+            F.col("state_ut"),
+            F.lit(col_name).alias("indicator_key"),
+            value_expr.alias("indicator_value"),
+            suppressed_expr.alias("is_suppressed"),
+            raw_col.cast("string").alias("indicator_raw"),
+        )
+    )
+
 health_indicator.write.format("delta").mode("overwrite").saveAsTable(f"{TARGET}.health_indicator")
 print(f"Wrote {TARGET}.health_indicator ({health_indicator.count()} rows)")
 
