@@ -2,7 +2,27 @@
 -- @param facilities_json STRING
 -- @param specialty_category STRING
 -- @param _run STRING
-WITH category_specialties AS (
+WITH state_map AS (
+  SELECT * FROM VALUES
+    ('DELHI', 'NCT OF DELHI'),
+    ('NCT OF DELHI', 'NCT OF DELHI'),
+    ('JAMMU AND KASHMIR', 'JAMMU & KASHMIR'),
+    ('JAMMU & KASHMIR', 'JAMMU & KASHMIR'),
+    ('ANDAMAN & NICOBAR ISLANDS', 'ANDAMAN & NICOBAR ISLANDS'),
+    ('ANDAMAN AND NICOBAR ISLANDS', 'ANDAMAN & NICOBAR ISLANDS'),
+    ('ODISHA', 'ODISHA'),
+    ('ORISSA', 'ODISHA'),
+    ('PUDUCHERRY', 'PUDUCHERRY'),
+    ('PONDICHERRY', 'PUDUCHERRY'),
+    ('CHHATTISGARH', 'CHHATTISGARH'),
+    ('CHATTISGARH', 'CHHATTISGARH'),
+    ('UTTARAKHAND', 'UTTARAKHAND'),
+    ('UTTARANCHAL', 'UTTARAKHAND'),
+    ('DADRA AND NAGAR HAVELI AND DAMAN AND DIU', 'DADRA & NAGAR HAVELI AND DAMAN & DIU'),
+    ('DADRA & NAGAR HAVELI AND DAMAN & DIU', 'DADRA & NAGAR HAVELI AND DAMAN & DIU')
+  AS t(raw_state, norm_state)
+),
+category_specialties AS (
   SELECT DISTINCT TRIM(specialties) AS specialty
   FROM dais_2026.hackathon.specialty_category_mapping
   WHERE :specialty_category = 'ALL'
@@ -45,13 +65,12 @@ scenario_by_district AS (
 ),
 district_meta AS (
   SELECT
-    TRIM(district_name) AS district_name,
-    TRIM(state_ut) AS state_ut,
-    UPPER(TRIM(district_name)) AS district_key,
-    UPPER(TRIM(state_ut)) AS state_key,
-    MAX(CASE WHEN indicator_key = 'households_surveyed' THEN indicator_value END) AS households_surveyed
-  FROM dais_2026.hackathon.health_indicator
-  GROUP BY 1, 2, 3, 4
+    UPPER(TRIM(n.district_name)) AS district_key,
+    COALESCE(sm.norm_state, UPPER(TRIM(n.state_ut))) AS state_key,
+    TRY_CAST(n.households_surveyed AS DOUBLE) AS households_surveyed
+  FROM databricks_virtue_foundation_dataset_dais_2026.virtue_foundation_dataset.nfhs_5_district_health_indicators n
+  LEFT JOIN state_map sm ON UPPER(TRIM(n.state_ut)) = sm.raw_state
+  WHERE TRY_CAST(n.households_surveyed AS DOUBLE) IS NOT NULL
 ),
 district_demand AS (
   SELECT
@@ -183,7 +202,10 @@ scored AS (
         0
       )
     ) AS supply_norm,
-    households_surveyed / NULLIF(MAX(households_surveyed) OVER (), 0) AS demand_sample_norm
+    COALESCE(
+      households_surveyed / NULLIF(MAX(households_surveyed) OVER (), 0),
+      0
+    ) AS demand_sample_norm
   FROM joined
 ),
 median_d AS (
@@ -206,7 +228,7 @@ final_scored AS (
     ROUND(demand_norm, 3) AS demand_score,
     ROUND(COALESCE(supply_norm, 0), 3) AS supply_score,
     ROUND(
-      0.6 * demand_sample_norm
+      0.6 * COALESCE(demand_sample_norm, 0)
       + 0.4 * CASE
           WHEN total_facilities >= 10 THEN 1.0
           WHEN total_facilities >= 3 THEN 0.75

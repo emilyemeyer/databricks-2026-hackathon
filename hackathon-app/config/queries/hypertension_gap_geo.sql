@@ -87,13 +87,12 @@ district_geo AS (
 ),
 district_meta AS (
   SELECT
-    TRIM(district_name) AS district_name,
-    TRIM(state_ut) AS state_ut,
-    UPPER(TRIM(district_name)) AS district_key,
-    UPPER(TRIM(state_ut)) AS state_key,
-    MAX(CASE WHEN indicator_key = 'households_surveyed' THEN indicator_value END) AS households_surveyed
-  FROM dais_2026.hackathon.health_indicator
-  GROUP BY 1, 2, 3, 4
+    UPPER(TRIM(n.district_name)) AS district_key,
+    COALESCE(sm.norm_state, UPPER(TRIM(n.state_ut))) AS state_key,
+    TRY_CAST(n.households_surveyed AS DOUBLE) AS households_surveyed
+  FROM databricks_virtue_foundation_dataset_dais_2026.virtue_foundation_dataset.nfhs_5_district_health_indicators n
+  LEFT JOIN state_map sm ON UPPER(TRIM(n.state_ut)) = sm.raw_state
+  WHERE TRY_CAST(n.households_surveyed AS DOUBLE) IS NOT NULL
 ),
 district_demand AS (
   SELECT
@@ -226,7 +225,10 @@ scored AS (
         0
       )
     ) AS supply_norm,
-    households_surveyed / NULLIF(MAX(households_surveyed) OVER (), 0) AS demand_sample_norm
+    COALESCE(
+      households_surveyed / NULLIF(MAX(households_surveyed) OVER (), 0),
+      0
+    ) AS demand_sample_norm
   FROM joined
 ),
 balanced AS (
@@ -244,7 +246,7 @@ balanced AS (
     s.supply_norm,
     ROUND(s.supply_norm - s.demand_norm, 4) AS balance_ratio,
     ROUND(
-      0.6 * s.demand_sample_norm
+      0.6 * COALESCE(s.demand_sample_norm, 0)
       + 0.4 * CASE
           WHEN s.total_facilities >= 10 THEN 1.0
           WHEN s.total_facilities >= 3 THEN 0.75
